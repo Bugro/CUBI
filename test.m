@@ -1,4 +1,4 @@
-function test
+function test(imageATraiter)
 % note : quelques test ave les fonction wiener2 et medfilt2 montrent que
 % l'amelioration de la qualité de l'image a un impact négligeable sur la
 % detection de contours avec edge.
@@ -26,7 +26,7 @@ function test
 
 
 
- J  = imread('billarddessus.jpg');
+ J  = imageATraiter;
   rotJ = imrotate(J,33,'crop');
  I = rgb2gray(J);
  rotI = imrotate(I,33,'crop');
