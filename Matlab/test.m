@@ -46,6 +46,4 @@ end
 rad = 9;
 [y0detect,x0detect,Accumulator] = houghcircle(img,rad,28);
 plot(x0detect(:),y0detect(:),'x','LineWidth',2,'Color','blue');
-
-
-
+end
