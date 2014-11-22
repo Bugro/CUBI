@@ -29,6 +29,7 @@ TimerData=timer('TimerFcn', {@FrameRateDisplay,vid},'Period',1/NumberFrameDispla
 
 % Start video and timer object
 start(vid);
+start(tim);
 start(TimerData);
 %get(vid); %Renvoie des infos sur vid
 % We go on until the figure is closed (two times, i don't know why)
