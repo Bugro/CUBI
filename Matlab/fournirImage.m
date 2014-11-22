@@ -1,12 +1,24 @@
+function giveImage(imageparsec);
 vid = videoinput('winvideo',1,'YUY2_160x120'); %On crée l'objet vidéo, le troisième paramêtre est le format de l'image
 
-set(vid,'TriggerRepeat',Inf); % permet une acquisition d'image en continu
+set(vid,'TriggerRepeat',1); % permet une acquisition d'image en continu
+
+imageparsec = 10;
+
+tim = timer('TimerFcn', {@traitement,vid},'Period',1/imageparsec,'ExecutionMode','fixedRate','BusyMode','drop'); %exécute traitement toute les 1/imageparsec secondes
 
 start(vid);
 
+start(tim);
 
-dat = getdata(vid,3); % stock une image
-for i = 1:3
-    test(dat(:,:,:,i)); % applique la fonction test à la première image stockée
-end
+stop(tim);
+delete(tim)
 stop(vid);
+delete(vid);
+clear functions;
+end
+
+function traitement(obj,event,vid);
+    dat = getdata(vid,1); % stock une image
+    test(dat(:,:,:,1)); % applique la fonction test à la première image stockée
+end
