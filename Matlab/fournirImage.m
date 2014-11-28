@@ -20,5 +20,6 @@ end
 
 function traitement(obj,event,vid); %Je ne comprends pas pourquoi il faut 3 arguments ici mais il n'y a que comme ça que ça marche
     dat = getdata(vid,1); % stock une image
-    test(dat(:,:,:,1)); % applique la fonction test à la première image stockée
+    aff = treatment(dat(:,:,:,1)); % applique la fonction test à la première image stockée
+    imagesc(aff);
 end
