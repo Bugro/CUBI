@@ -1,0 +1,5 @@
+Comment obtenir une image provenant d'une webcam sur le raspberry
+http://www.pobot.org/Vision-par-webcam-avec-une.html
+
+Si on doit se servir de la Pi-caméra ce site explique comment la paramêtrer pour utiliser openCV
+http://thinkrpi.wordpress.com/2013/05/22/opencv-and-camera-board-csi/
