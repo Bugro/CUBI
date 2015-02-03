@@ -17,6 +17,7 @@ struct Pointrect
 	double xCoord;
 	double yCoord;
 };
+
 //create a table of 8 points
 struct Pointrect rectangleBillard[8];
 //tableau des 4 points moyens
@@ -25,7 +26,7 @@ struct Pointrect rectMoy[4];
 // Fonction pour récupérer les actions de la souris
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
-     if  ( event == EVENT_LBUTTONDOWN )
+     if  ( event == EVENT_LBUTTONDOWN ) // Lorsqu'on clique on crée des points
      {
           cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
 		  rectangleBillard[compteurDePoint].xCoord = x;
@@ -33,19 +34,6 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 		  cout << "Le point numéro " << compteurDePoint << " a pour position (" << rectangleBillard[compteurDePoint].xCoord << ", " << rectangleBillard[compteurDePoint].yCoord << ")." << endl;
 		  compteurDePoint++;
 	 }
-     else if  ( event == EVENT_RBUTTONDOWN )
-     {
-          cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-     }
-     else if  ( event == EVENT_MBUTTONDOWN )
-     {
-          cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
-     }
-     /*else if ( event == EVENT_MOUSEMOVE )
-     {
-          cout << "Mouse move over the window - position (" << x << ", " << y << ")" << endl;
-
-     }*/
 }
 
 int main(int argc, char* argv[])
@@ -71,11 +59,6 @@ int main(int argc, char* argv[])
 	double iAngle2 = 180;
 	double iAngle3 = 180;
 	double iAngle4 = 180;
-    
-	/*
-	//créé un curseur pour faire varier l'angle
-	createTrackbar("Angle", pzRotatingWindowName, &iAngle, 360);
-	*/
 
     while (true)
     {
@@ -153,22 +136,6 @@ int main(int argc, char* argv[])
 	// Affiche le resultat
 	imshow( pzRotatingWindowName, matFinale);
  }
- 
-
-
- /*
- //Affichage des points pour vérifier qu'ils sont  bien visible par la fonction main
- if(compteurDePoint == 8)
- {
-	 int i = 0;
-	 cout << "Voici les points " << endl;
-	 for(i = 0; i<8 ; i++)
-	 {
-			 cout << "(" << rectangleBillard[i].xCoord << ", " << rectangleBillard[i].yCoord << ")" << endl;
-	 }
-	 compteurDePoint++; //Permet d'éviter que l'affichage se fasse plein de fois
- }
- */
 
  //wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
         if (waitKey(30) == 27) 
