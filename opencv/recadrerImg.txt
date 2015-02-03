@@ -1,0 +1,123 @@
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include <iostream>
+
+using namespace cv;
+using namespace std;
+
+int compteurDePoint = 0;
+
+
+//create the structure Point to store positions
+struct Pointrect
+{
+	int xCoord;
+	int yCoord;
+};
+//create a table of points
+struct Pointrect rectangleBillard[8];
+
+// Fonction pour récupérer les actions de la souris
+void CallBackFunc(int event, int x, int y, int flags, void* userdata)
+{
+     if  ( event == EVENT_LBUTTONDOWN )
+     {
+          cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+		  rectangleBillard[compteurDePoint].xCoord = x;
+		  rectangleBillard[compteurDePoint].yCoord = y;
+		  cout << "Le point numéro " << compteurDePoint << " a pour position (" << rectangleBillard[compteurDePoint].xCoord << ", " << rectangleBillard[compteurDePoint].yCoord << ")." << endl;
+		  compteurDePoint++;
+	 }
+     else if  ( event == EVENT_RBUTTONDOWN )
+     {
+          cout << "Right button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+     }
+     else if  ( event == EVENT_MBUTTONDOWN )
+     {
+          cout << "Middle button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+     }
+     /*else if ( event == EVENT_MOUSEMOVE )
+     {
+          cout << "Mouse move over the window - position (" << x << ", " << y << ")" << endl;
+
+     }*/
+}
+
+int main(int argc, char* argv[])
+{
+    // open the video file for reading
+    VideoCapture cap("Capture_20150128_3.mp4"); 
+
+    // if not success, exit program
+    if ( !cap.isOpened() )  
+    {
+         cout << "Cannot open the video file" << endl;
+         return -1;
+    }
+
+    const char* pzOriginalWindowName = "Original Video";
+    namedWindow(pzOriginalWindowName, CV_WINDOW_AUTOSIZE); 
+
+    const char* pzRotatingWindowName = "Rotated Video";
+    namedWindow( pzRotatingWindowName, CV_WINDOW_AUTOSIZE );
+
+    int iAngle = 180;
+    createTrackbar("Angle", pzRotatingWindowName, &iAngle, 360);
+
+
+    while (true)
+    {
+        Mat matOriginalFrame;
+
+  // read a new frame from video
+        bool bSuccess = cap.read(matOriginalFrame); 
+
+  //if not success, break loop
+        if (!bSuccess) 
+ {
+                       cout << "Cannot read the frame from video file" << endl;
+                       break;
+        }
+
+        imshow(pzOriginalWindowName, matOriginalFrame);
+
+  //get the affine transformation matrix
+ Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), (iAngle - 180), 1 ); //iAngle = 182
+ 
+ // Rotate the image
+ Mat matRotatedFrame;
+ warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
+
+ // Recadrer l'image
+ Rect myROI = cvRect( 63, 104, 510, 253);
+ 
+ Mat matFinale;
+ matFinale = matRotatedFrame(myROI);
+
+ // Affiche le resultat
+ imshow( pzRotatingWindowName, matFinale);
+
+ //set the callback function for any mouse event
+ setMouseCallback( pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
+
+ if(compteurDePoint == 8)
+ {
+	 int i = 0;
+	 cout << "Voici les points " << endl;
+	 for(i = 0; i<8 ; i++)
+	 {
+			 cout << "(" << rectangleBillard[i].xCoord << ", " << rectangleBillard[i].yCoord << ")" << endl;
+	 }
+	 compteurDePoint++; //Permet d'éviter que l'affichage se fasse plein de fois
+ }
+
+ //wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
+        if (waitKey(30) == 27) 
+ {
+                cout << "esc key is pressed by user" << endl; 
+                break; 
+ }
+    }
+
+    return 0;
+}
