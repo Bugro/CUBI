@@ -19,7 +19,7 @@ struct Pointrect
 };
 
 //create a table of 8 points
-struct Pointrect rectangleBillard[8];
+struct Pointrect rectangleBillard[12];
 //tableau des 4 points moyens
 struct Pointrect rectMoy[4];
 
@@ -64,86 +64,85 @@ int main(int argc, char* argv[])
     {
         Mat matOriginalFrame;
 
-  // read a new frame from video
+		// read a new frame from video
         bool bSuccess = cap.read(matOriginalFrame); 
 
-  //if not success, break loop
+		//if not success, break loop
         if (!bSuccess) 
-
- {
-                       cout << "Cannot read the frame from video file" << endl;
-                       break;
+		{
+			cout << "Cannot read the frame from video file" << endl;
+			break;
         }
 
         imshow(pzOriginalWindowName, matOriginalFrame);
 
-	//set the callback function for any mouse event
- setMouseCallback( pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
+		//set the callback function for any mouse event
+		setMouseCallback( pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
 
 
- //On affiche la fenêtre recadrée que lorsqu'on a fini de cliquer les 8 points
- if(compteurDePoint > 7)
- {
-	 // évite que le calcul des points soit fait pour chaque image après la saisie du 8eme point
-	 if(compteurDePoint == 8)
-	 {
-		 // calcul des 4 points moyens à partir des 8 cliqués
+		//On affiche la fenêtre recadrée que lorsqu'on a fini de cliquer les 8 points
+		if(compteurDePoint > 11)
+		{
+			// évite que le calcul des points soit fait pour chaque image après la saisie du 8eme point
+			if(compteurDePoint == 12)
+			{
+				// calcul des 4 points moyens à partir des 8 cliqués
 
-		 //pour les x
-		 rectMoy[0].xCoord = (rectangleBillard[0].xCoord + rectangleBillard[1].xCoord) / 2;
-		 rectMoy[1].xCoord = (rectangleBillard[2].xCoord + rectangleBillard[3].xCoord) / 2;
-		 rectMoy[2].xCoord = (rectangleBillard[4].xCoord + rectangleBillard[5].xCoord) / 2;
-		 rectMoy[3].xCoord = (rectangleBillard[6].xCoord + rectangleBillard[7].xCoord) / 2;
+				//pour les x
+				rectMoy[0].xCoord = (rectangleBillard[0].xCoord + rectangleBillard[1].xCoord) / 2;
+				rectMoy[1].xCoord = (rectangleBillard[2].xCoord + rectangleBillard[3].xCoord + rectangleBillard[4].xCoord + rectangleBillard[5].xCoord) / 4;
+				rectMoy[2].xCoord = (rectangleBillard[6].xCoord + rectangleBillard[7].xCoord) / 2;
+				rectMoy[3].xCoord = (rectangleBillard[8].xCoord + rectangleBillard[9].xCoord + rectangleBillard[10].xCoord + rectangleBillard[11].xCoord) / 4;
 
-		 //pour les y
-		 rectMoy[0].yCoord = (rectangleBillard[0].yCoord + rectangleBillard[1].yCoord) / 2;
-		 rectMoy[1].yCoord = (rectangleBillard[2].yCoord + rectangleBillard[3].yCoord) / 2;
-		 rectMoy[2].yCoord = (rectangleBillard[4].yCoord + rectangleBillard[5].yCoord) / 2;
-		 rectMoy[3].yCoord = (rectangleBillard[6].yCoord + rectangleBillard[7].yCoord) / 2;
+				//pour les y
+				rectMoy[0].yCoord = (rectangleBillard[0].yCoord + rectangleBillard[1].yCoord) / 2;
+				rectMoy[1].yCoord = (rectangleBillard[2].yCoord + rectangleBillard[3].yCoord + rectangleBillard[4].yCoord + rectangleBillard[5].yCoord) / 4;
+				rectMoy[2].yCoord = (rectangleBillard[6].yCoord + rectangleBillard[7].yCoord) / 2;
+				rectMoy[3].yCoord = (rectangleBillard[8].yCoord + rectangleBillard[9].yCoord + rectangleBillard[10].yCoord + rectangleBillard[11].yCoord) / 4;
 
 		
-		 // calcul de l'angle
-		 iAngle1 = (atan2(rectangleBillard[0].xCoord - rectangleBillard[1].xCoord , rectangleBillard[0].yCoord - rectangleBillard[1].yCoord)) * (180/PI);
-		 iAngle2 = (atan2(rectangleBillard[2].yCoord - rectangleBillard[3].yCoord , rectangleBillard[3].xCoord - rectangleBillard[2].xCoord)) * (180/PI);
-		 iAngle3 = (atan2(rectangleBillard[5].xCoord - rectangleBillard[4].xCoord , rectangleBillard[5].yCoord - rectangleBillard[4].yCoord)) * (180/PI);
-		 iAngle4 = (atan2(rectangleBillard[7].yCoord - rectangleBillard[6].yCoord , rectangleBillard[6].xCoord - rectangleBillard[7].xCoord)) * (180/PI);
+				// calcul de l'angle
+				iAngle1 = (atan2(rectangleBillard[0].xCoord - rectangleBillard[1].xCoord , rectangleBillard[0].yCoord - rectangleBillard[1].yCoord)) * (180/PI);
+				iAngle2 = (atan2(rectangleBillard[2].yCoord - rectangleBillard[5].yCoord , rectangleBillard[5].xCoord - rectangleBillard[2].xCoord)) * (180/PI);
+				iAngle3 = (atan2(rectangleBillard[7].xCoord - rectangleBillard[6].xCoord , rectangleBillard[7].yCoord - rectangleBillard[6].yCoord)) * (180/PI);
+				iAngle4 = (atan2(rectangleBillard[11].yCoord - rectangleBillard[8].yCoord , rectangleBillard[8].xCoord - rectangleBillard[11].xCoord)) * (180/PI);
 		 
-		 iAngle = (iAngle1 + iAngle2 + iAngle3 + iAngle4) / 4;
+				iAngle = (iAngle1 + iAngle2 + iAngle3 + iAngle4) / 4;
 
-		 cout << iAngle << endl;
-		 cout << iAngle1 << endl;
-		 cout << iAngle2 << endl;
-		 cout << iAngle3 << endl;
-		 cout << iAngle4 << endl;
+				cout << iAngle << endl;
+				cout << iAngle1 << endl;
+				cout << iAngle2 << endl;
+				cout << iAngle3 << endl;
+				cout << iAngle4 << endl;
 
-		 compteurDePoint++; //évite que le calcul se fasse plein de fois
-	 }
+				compteurDePoint++; //évite que le calcul se fasse plein de fois
+			}
 	 
 	 
-	 //get the affine transformation matrix
-	Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), - iAngle , 1 ); //iAngle = 182
+			//get the affine transformation matrix
+			Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), - iAngle , 1 ); //iAngle = 182
  
-	// Rotate the image
-	Mat matRotatedFrame;
-	warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
+			// Rotate the image
+			Mat matRotatedFrame;
+			warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
 
-	// Recadrer l'image
-	Rect myROI = cvRect( rectMoy[0].xCoord, rectMoy[1].yCoord, rectMoy[2].xCoord - rectMoy[0].xCoord, rectMoy[3].yCoord - rectMoy[1].yCoord);
+			//ROI: Region Of Interest : on ne va traiter que cette partie de la matrice
+			// Recadrer l'image
+			Rect myROI = cvRect( rectMoy[0].xCoord, rectMoy[1].yCoord, rectMoy[2].xCoord - rectMoy[0].xCoord, rectMoy[3].yCoord - rectMoy[1].yCoord);
  
-	Mat matFinale;
-	matFinale = matRotatedFrame(myROI);
+			Mat matFinale;
+			matFinale = matRotatedFrame(myROI);
 
-	// Affiche le resultat
-	imshow( pzRotatingWindowName, matFinale);
- }
+			// Affiche le resultat
+			imshow( pzRotatingWindowName, matFinale);
+		}
 
- //wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
-        if (waitKey(30) == 27) 
- {
-                cout << "esc key is pressed by user" << endl; 
-                break; 
- }
-    }
-
+		//wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
+		if (waitKey(30) == 27) 
+		{
+			cout << "esc key is pressed by user" << endl; 
+			break; 
+		}
+	}
     return 0;
 }
