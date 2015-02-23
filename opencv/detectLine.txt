@@ -9,18 +9,33 @@ using namespace std;
 
 #define PI 3.14159265
 
+int maxCanneX = 0;
+int minCanneX = 640;
+int maxCanneY = 0; 
+int minCanneY = 480;
+
+int ecartCanne = 0;
+
+int coefDirCanne = 0;
+int ordOrigCanne = 0;
+
 int compteurDePoint = 0;
 int compteurDeCouleur = 0;
+int compteurDeLigne = 0;
 
-Mat matRecadrer;
-Mat matRotatedFrame;
+Rect myROI, ROICanne;
+
+Mat matRecadrer, matRotatedFrame, blam, dst, cdst;
 
 int thresholdCanny = 9;
 int thresholdCenter = 16;
 
+int minLineLengh = 30;
+int maxLineGap = 30;
+
 int minRed = 120;
 int maxRed = 130;
-int maxNoire = 130;
+int maxNoire = 90;
 int maxBlanche = 40;
 int minJaune = 90;
 int maxJaune = 100;
@@ -87,16 +102,20 @@ struct Bille
 };
 
 //create a table of 8 points
-struct Pointrect rectangleBillard[12];
+struct Pointrect rectangleBillard[100]; // On autorise 100 cliques de l'utilisateur -> c'est sale : à changer -> du genre désactiver la possibilité de cliquer après le douzième point
+
 //tableau des 4 points moyens
 struct Pointrect rectMoy[4];
+
+//La canne
+struct Pointrect cannePoint[2];
 
 // Fonction pour récupérer les actions de la souris
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
      if  ( event == EVENT_LBUTTONDOWN ) // Lorsqu'on clique on crée des points
      {
-          cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+          //cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
 		  rectangleBillard[compteurDePoint].xCoord = x;
 		  rectangleBillard[compteurDePoint].yCoord = y;
 		  cout << "Le point numéro " << compteurDePoint << " a pour position (" << rectangleBillard[compteurDePoint].xCoord << ", " << rectangleBillard[compteurDePoint].yCoord << ")." << endl;
@@ -106,6 +125,32 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 
 int main(int argc, char* argv[])
 {
+	//Initialisation de rectangleBillard
+	rectangleBillard[0].xCoord = 85;
+	rectangleBillard[0].yCoord = 309;
+	rectangleBillard[1].xCoord = 58;
+	rectangleBillard[1].yCoord = 102;
+	rectangleBillard[2].xCoord = 80;
+	rectangleBillard[2].yCoord = 74;
+	rectangleBillard[3].xCoord = 287;
+	rectangleBillard[3].yCoord = 69;
+	rectangleBillard[4].xCoord = 349;
+	rectangleBillard[4].yCoord = 68;
+	rectangleBillard[5].xCoord = 540;
+	rectangleBillard[5].yCoord = 61;
+	rectangleBillard[6].xCoord = 575;
+	rectangleBillard[6].yCoord = 84;
+	rectangleBillard[7].xCoord = 571;
+	rectangleBillard[7].yCoord = 257;
+	rectangleBillard[8].xCoord = 560;
+	rectangleBillard[8].yCoord = 305;
+	rectangleBillard[9].xCoord = 358;
+	rectangleBillard[9].yCoord = 319;
+	rectangleBillard[10].xCoord = 294;
+	rectangleBillard[10].yCoord = 316;
+	rectangleBillard[11].xCoord = 103;
+	rectangleBillard[11].yCoord = 329;
+	
     // open the video file for reading
     VideoCapture cap("Capture_20150204_1.mp4"); 
 
@@ -117,13 +162,13 @@ int main(int argc, char* argv[])
     }
 
     const char* pzOriginalWindowName = "Original Video, Définissez les bandes ici";
-    //namedWindow(pzOriginalWindowName, CV_WINDOW_AUTOSIZE); 
+    namedWindow(pzOriginalWindowName, CV_WINDOW_AUTOSIZE); 
 
     const char* pzRotatingWindowName = "Rotated Video";
     //namedWindow( pzRotatingWindowName, CV_WINDOW_AUTOSIZE );
 	
     const char* pzCirclesWindowName = "Circles Video";
-    namedWindow( pzCirclesWindowName, CV_WINDOW_AUTOSIZE );
+    //namedWindow( pzCirclesWindowName, CV_WINDOW_AUTOSIZE );
 
 	//Create the trackbars window
 	createTrackbars();
@@ -148,14 +193,14 @@ int main(int argc, char* argv[])
 			break;
         }
 
-        //imshow(pzOriginalWindowName, matOriginalFrame);
+        imshow(pzOriginalWindowName, matOriginalFrame);
 
 		//set the callback function for any mouse event
 		setMouseCallback( pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
 
 		//On affiche la fenêtre recadrée que lorsqu'on a fini de cliquer les 12 points
 		if(compteurDePoint > 11)
-			{
+		{
 			// évite que le calcul des points soit fait pour chaque image après la saisie du 8eme point
 			if(compteurDePoint == 12)
 			{
@@ -182,32 +227,167 @@ int main(int argc, char* argv[])
 		 
 				iAngle = (iAngle1 + iAngle2 + iAngle3 + iAngle4) / 4;
 
-				cout << iAngle << endl;
-				cout << iAngle1 << endl;
-				cout << iAngle2 << endl;
-				cout << iAngle3 << endl;
-				cout << iAngle4 << endl;
+				//get the affine transformation matrix
+				Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), - iAngle , 1 ); //iAngle = 182
+ 
+				warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
+
+				//ROI: Region Of Interest : on ne va traiter que cette partie de la matrice
+				// Recadrer l'image
+				myROI = cvRect( rectMoy[0].xCoord, rectMoy[1].yCoord, rectMoy[2].xCoord - rectMoy[0].xCoord, rectMoy[3].yCoord - rectMoy[1].yCoord);
 
 				compteurDePoint++; //évite que le calcul se fasse plein de fois
 			}
-	 
-			//get the affine transformation matrix
-			Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), - iAngle , 1 ); //iAngle = 182
- 
-			warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
-
-			//ROI: Region Of Interest : on ne va traiter que cette partie de la matrice
-			// Recadrer l'image
-			Rect myROI = cvRect( rectMoy[0].xCoord, rectMoy[1].yCoord, rectMoy[2].xCoord - rectMoy[0].xCoord, rectMoy[3].yCoord - rectMoy[1].yCoord);
-
-			matRecadrer = matRotatedFrame(myROI);
+			else
+			{
+				matRecadrer = matRotatedFrame(myROI);
+			}
 		}
-		else //On prend l'image d'origine tant qu'on a pas redré l'image
+		else //On prend l'image d'origine tant qu'on a pas recadré l'image
 		{
 			matRecadrer = matOriginalFrame;
 		}
 
-		/////////////////////////Detection de cercles/////////////////////////
+/////////////////////////////////////////////// Detection de Lignes //////////////////////////////////////////////////////////////////////////////////////////////
+
+		Mat matLine, matTemp;
+		
+		matTemp = matOriginalFrame;
+
+		//matLine = matRecadrer;
+		//Si on avait la position de la canne avant on la cherche à proximité
+		
+		/*if(compteurDeLigne == 0)//au premier coup on prend toute l'image
+		{
+			ROICanne = cvRect(rectangleBillard[1].xCoord, rectangleBillard[1].yCoord, rectangleBillard[7].xCoord - rectangleBillard[1].xCoord, rectangleBillard[8].yCoord - rectangleBillard[1].yCoord);
+			matLine = matTemp(ROICanne);
+		}
+		else if(cannePoint[0].xCoord == 0)
+		{
+			matLine = matTemp(ROICanne);
+		}
+		else
+		{
+			if(coefDirCanne <= 0)
+			{
+				ROICanne = cvRect(minCanneX + cannePoint[1].xCoord - ecartCanne, minCanneY + cannePoint[1].yCoord - ecartCanne, abs(minCanneX + cannePoint[0].xCoord + ecartCanne - cannePoint[1].xCoord), abs(minCanneY + cannePoint[0].yCoord + ecartCanne - cannePoint[1].yCoord));
+			}
+			if(coefDirCanne > 0)
+			{
+				ROICanne = cvRect(minCanneX + cannePoint[0].xCoord - ecartCanne, minCanneY + cannePoint[1].yCoord - ecartCanne, abs(minCanneX + cannePoint[1].xCoord + ecartCanne - cannePoint[0].xCoord), abs(minCanneY + cannePoint[0].yCoord + ecartCanne - cannePoint[1].yCoord));
+			}
+			
+			matLine = matTemp(ROICanne);
+		}*/		
+		matLine = matOriginalFrame;
+		
+		Canny(matLine, dst, 50, 200, 3);
+
+		vector<Vec4i> lines;
+		vector<Vec4i> canne;
+
+		canne.resize(20);
+
+		HoughLinesP(dst, lines, 1, CV_PI/180, 50, minLineLengh, maxLineGap ); //Plus le 3eme membre est petit plus la fonction est précise mais lente
+		
+		for( size_t i = 0; i < lines.size(); i++ )
+		{
+			Vec4i l = lines[i];
+			
+			line( matLine, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
+			//On essaye d'identifier les lignes correspondant à la canne
+			//Les deux rectangles possibles sont : (0, 2, 6, 8) ou (1, 5, 7, 11)
+			for(size_t j = 0; j < 20; j++)
+			{
+			if((compteurDeLigne == 0))
+			{
+				Point linePoint(cvRound(l[0]), cvRound(l[1]));
+				circle( matLine, linePoint, 2, Scalar(0,255,0), -1, 8, 0 );
+				Point linePoint2(cvRound(l[2]), cvRound(l[3]));
+				circle( matLine, linePoint2, 2, Scalar(0,255,0), -1, 8, 0 );
+				canne[j][0] = l[0];
+				canne[j][1] = l[1];
+				canne[j][2] = l[2];
+				canne[j][3] = l[3];
+			}
+			cout << lines[i] << endl;
+			}			
+		}
+		//On fait la moyenne des points de la canne, il faudrait aussi exclure les points abérants
+		for (size_t j = 0; j < canne.size(); j++)
+		{
+			if(canne[j][2] - canne[j][0] != 0) //On évite la division par zéro
+			{
+				int coefDir;
+				int ordOrig;
+				coefDir = (canne[j][3] - canne[j][1]) / (canne[j][2] - canne[j][0]);
+				ordOrig = canne[j][1] - coefDir * canne[j][0];
+				//On fait la moyenne des coef directeurs et des ordonnées à l'origine
+				coefDirCanne = (coefDirCanne + coefDir) / (j + 1);
+				ordOrigCanne = (ordOrigCanne + ordOrig) / (j + 1);
+			}
+		}
+		maxCanneX = 0;
+		minCanneX = 640;
+		maxCanneY = 0; 
+		minCanneY = 480;
+		//On cherche les max et min
+		for(size_t k = 0; k < canne.size(); k++)
+		{
+			//Pour les max
+			if(canne[k][0] > maxCanneX)
+			{
+				maxCanneX = canne[k][0];
+			}
+			if(canne[k][1] > maxCanneY)
+			{
+				maxCanneY = canne[k][1];
+			}
+			if(canne[k][2] > maxCanneX)
+			{
+				maxCanneX = canne[k][2];
+			}
+			if(canne[k][3] > maxCanneY)
+			{
+				maxCanneY = canne[k][3];
+			}
+			//Pour les min
+			if(canne[k][0] < minCanneX)
+			{
+				minCanneX = canne[k][0];
+			}
+			if(canne[k][1] < minCanneY)
+			{
+				minCanneY = canne[k][1];
+			}
+			if(canne[k][2] < minCanneX)
+			{
+				minCanneX = canne[k][2];
+			}
+			if(canne[k][3] < minCanneY)
+			{
+				minCanneY = canne[k][3];
+			}
+		}
+		if(coefDirCanne <= 0)
+		{
+			cannePoint[0].xCoord = maxCanneX;
+			cannePoint[0].yCoord = maxCanneY;
+			cannePoint[1].xCoord = minCanneX;
+			cannePoint[1].yCoord = minCanneY;
+		}
+		if(coefDirCanne > 0)
+		{
+			cannePoint[0].xCoord = minCanneX;
+			cannePoint[0].yCoord = maxCanneY;
+			cannePoint[1].xCoord = maxCanneX;
+			cannePoint[1].yCoord = minCanneY;
+		}
+		//On trace d'un point extreme à l'autre de la canne
+		line( matLine, Point(cannePoint[0].xCoord, cannePoint[0].yCoord), Point(cannePoint[1].xCoord, cannePoint[1].yCoord), Scalar(255,255,0), 5, CV_AA);
+	
+
+////////////////////////////////////// Detection de cercles //////////////////////////////////////////////////////////////////////
 
 
 		//On crée deux matrices
@@ -222,7 +402,7 @@ int main(int argc, char* argv[])
  
 		// Reduce the noise so we avoid false circle detection
 		// Take gray, return gray, 
-		GaussianBlur( gray, gray, Size(9, 9), 1, 1 );
+		GaussianBlur( gray, gray, Size(13, 13), 1, 1 );
  
 		vector<Vec3f> circles;
 
@@ -243,7 +423,7 @@ int main(int argc, char* argv[])
 		}
 
 
-		////////////////////////////////Détection de couleurs à l'intérieur des cercles///////////////////////////////////////////////////
+////////////////////////////////////// Détection de couleurs à l'intérieur des cercles ///////////////////////////////////////////////////
 		Mat img_rgb, img_hsv;
 		img_rgb = src;
 		//On converti img_rgb en img_hsv
@@ -283,40 +463,40 @@ int main(int argc, char* argv[])
 				if(intens1 < maxBlanche)
 				{
 					TableauBilles[i].color = "Blanche";
-					cout << "Color " << TableauBilles[i].color <<endl;
-					cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 					
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(255,255,255));  
 				}
 				else if(intens2 < maxNoire)
 				{
 					TableauBilles[i].color = "Noire";
-					cout << "Color " << TableauBilles[i].color <<endl;
-					cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 					
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,0,0));  
 				}
 				else if(intens0 < maxRed && intens0 > minRed)
 				{
 					TableauBilles[i].color = "Rouge";
-					cout << "Color " << TableauBilles[i].color <<endl;
-					cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 					
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,0,255));  
 				}
 				else if(intens0 > minJaune && intens0 < maxJaune)
 				{
 					TableauBilles[i].color = "Jaune";
-					cout << "Color " << TableauBilles[i].color <<endl;
-					cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 					
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,255,255));  
 				}
 				else
 				{
 					TableauBilles[i].color = "Unknown"; // for unknonw : ce n'est pas un bille
-					cout << "Color " << TableauBilles[i].color <<endl;
-					cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 					
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(255,0,0));  
 				}
@@ -331,15 +511,17 @@ int main(int argc, char* argv[])
 			}
 		}
 		
-		compteurDeCouleur ++;
-		/////////////////////////Affichage//////////////////////////
-
-		// Affiche le resultat
-		//imshow( pzRotatingWindowName, matRecadrer);
-			
-		imshow(pzCirclesWindowName, src);
 		
 
+		compteurDeCouleur ++;
+		compteurDeLigne ++;
+		
+///////////////////////////////////////////// Affichage ///////////////////////////////////////////////////////////////////////////////
+
+		// Affiche le resultat
+		imshow(pzRotatingWindowName, dst);
+			
+		imshow(pzCirclesWindowName, src);
 
 		//wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
 		if (waitKey(30) == 27) 
