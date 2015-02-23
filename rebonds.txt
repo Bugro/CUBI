@@ -1,0 +1,177 @@
+#include <iostream>
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include <cmath>
+#include <string>
+
+#define NBR					4
+
+using namespace cv;
+using namespace std;
+
+struct Droite{
+	int a;
+	int b;
+	int c;
+};
+
+struct Segment{
+	Droite d;
+	Point p1;
+	Point p2;
+};
+
+Droite droite (Point p1, Point p2){
+
+
+	Droite r;
+	r.a =p1.y-p2.y;
+
+	r.b =p2.x-p1.x;
+
+	r.c =-p1.y*p2.x+p1.x*p2.y;
+
+	return r; 
+}
+
+Segment segment (Point p1, Point p2){
+
+
+	Segment r;
+	r.d = droite (p1,p2);
+	r.p1 = p1;
+	r.p2 = p2;
+
+	return r; 
+}
+
+Point croisement (Droite d1, Droite d2){ 
+	
+	 Point r;
+     r.y=(d2.c*d1.a-d2.a*d1.c)/(d2.b*d1.a-d2.a*d1.b);
+
+     r.x=(d1.c*d2.b-d1.b*d2.c)/(d1.a*d2.b-d2.a*d1.b);
+
+	 return r;
+}
+
+bool appartient(Segment s, Point p){
+
+	int i=0;
+
+	if(s.p1.x < s.p2.x )
+	{
+		if( s.p1.x < p.x && p.x < s.p2.x )
+			i=i+1;
+	}
+	else
+	{
+		if(s.p2.x < p.x && p.x < s.p1.x )
+			i=i+1;
+	}
+
+	if(s.p1.y < s.p2.y )
+	{
+		if( s.p1.y < p.y && p.y < s.p2.y )
+			i=i+1;
+	}
+	else
+	{
+		if(s.p2.y < p.y && p.y < s.p1.y )
+			i=i+1;
+	}
+
+	if( s.d.a*p.x+s.d.b*p.y+s.d.c == 0)
+		i++;
+
+	if(i == 3)
+		return true;
+	else 
+		return false;
+
+}
+
+int pscalaire(Point p1, Point p2, Point p3, Point p4){
+
+	int r;
+
+	r = (p2.x-p1.x)*(p4.x-p3.x)+(p2.y-p1.y)*(p4.y-p3.y);
+
+	return r;
+}
+
+Point sym(Segment s, Point a){
+
+	Point r;
+	r.y = 1/(1+s.d.a^2/s.d.b^2)*(2*s.p1.y-a.y-s.d.a/s.d.b*(2*a.x-s.d.a/s.d.b*a.y-2*s.p1.x));
+	r.x = a.x+s.d.a/s.d.b*(r.y-a.y);
+
+	return r;
+}
+
+	// coordonées des bords
+void main (){
+
+Point coin[12];
+
+coin[0].x=1; coin[0].y=6;
+coin[1].x=5; coin[1].y=6;
+coin[2].x=6; coin[2].y=6;
+coin[3].x=10; coin[3].y=6;
+coin[4].x=11; coin[4].y=5;
+coin[5].x=11; coin[5].y=1;
+coin[6].x=10; coin[6].y=0;
+coin[7].x=6; coin[7].y=0;
+coin[8].x=5; coin[8].y=0;
+coin[9].x=1; coin[9].y=0;
+coin[10].x=0; coin[10].y=1;
+coin[11].x=0; coin[11].y=5;
+
+
+
+
+Point apt[NBR];
+Point bpt[NBR];
+Point cb;
+
+	// coordonnées des points de départ
+
+cb.x=5;cb.y=3;
+apt[0].x=5;apt[0].y=3;
+bpt[0].x=4;bpt[0].y=1;
+
+
+
+// equation des bords et de la canne
+
+Segment bord[6];
+
+for(int i = 0; i < 12; i += 2)
+{
+	    bord[i/2]=segment(coin[i],coin[i+1]);
+}
+
+Segment canne = segment (apt[0],bpt[0]);
+
+// equation du points d'intersection
+
+Segment bs[NBR];
+
+for(int j = 1; j < NBR ; j++ ){
+
+	for(int i =0; i < 6; i++){
+
+		if(appartient(bord[i],croisement(canne.d,bord[i].d))){
+			if(pscalaire(bpt[j-1],apt[j-1],apt[j-1],croisement(canne.d,bord[i].d)) > 0){
+				apt[j] = croisement(canne.d,bord[i].d);
+				bs[j] = bord[i];
+			}
+		}
+	}
+bpt[j] = sym(bs[j], apt[0]);
+
+}
+}
+
+
+
