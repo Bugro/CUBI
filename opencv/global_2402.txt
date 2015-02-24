@@ -1,0 +1,704 @@
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include <iostream>
+#include <cmath>
+#include <string>
+
+#define NBR	2
+
+using namespace cv;
+using namespace std;
+
+#define PI 3.14159265
+
+Point posBlanche;
+
+int maxCanneX = 640;
+int minCanneX = 0;
+int maxCanneY = 480; 
+int minCanneY = 0;
+
+int ecartCanne = 100;
+
+int coefDirCanne = 0;
+int ordOrigCanne = 0;
+
+int compteurDePoint = 0;
+int compteurDeCouleur = 0;
+int compteurDeLigne = 0;
+
+Rect myROI, ROICanne;
+
+vector<Vec4i> lines;
+
+Mat matRecadrer, matRotatedFrame, blam, dst, cdst;
+
+int thresholdCanny = 9;
+int thresholdCenter = 16;
+
+int minLineLengh = 5;
+int maxLineGap = 3;
+
+int minRed = 120;
+int maxRed = 130;
+int maxNoire = 120;
+int maxBlanche = 40;
+int minJaune = 90;
+int maxJaune = 100;
+
+//Paramêtres des cercles 
+const int DIST_MIN = 5;
+const int MIN_SIZE = 5;
+const int MAX_SIZE = 10;
+
+const string curseurWindowName = "curseurs";
+
+//Crée la structure Pointrect pour stocker des positions
+struct Pointrect
+{
+	double xCoord;
+	double yCoord;
+};
+
+struct Bille
+{
+	int xCoord;
+	int yCoord;
+	string color; //N (noir), B(blanc), J(jaune) ou R(rouge)
+};
+
+struct Droite{
+	int a;
+	int b;
+	int c;
+};
+
+struct Segment{
+	Droite d;
+	Point p1;
+	Point p2;
+};
+
+Droite droite (Point p1, Point p2){
+
+
+	Droite r;
+	r.a =p1.y-p2.y;
+
+	r.b =p2.x-p1.x;
+
+	r.c =-p1.y*p2.x+p1.x*p2.y;
+
+	return r; 
+}
+
+Segment segment (Point p1, Point p2){
+
+
+	Segment r;
+	r.d = droite (p1,p2);
+	r.p1 = p1;
+	r.p2 = p2;
+
+	return r; 
+}
+
+Point croisement (Droite d1, Droite d2){ 
+	Point r;
+	if((d2.b*d1.a-d2.a*d1.b != 0) && (d1.a*d2.b-d2.a*d1.b != 0))
+	{
+	 
+     r.y=(d2.c*d1.a-d2.a*d1.c)/(d2.b*d1.a-d2.a*d1.b);
+
+     r.x=(d1.c*d2.b-d1.b*d2.c)/(d1.a*d2.b-d2.a*d1.b);
+	}
+	else
+	{
+		r.x = 0;
+		r.y = 0;
+	}
+	 return r;
+}
+
+bool appartient(Segment s, Point p){
+
+	int i=0;
+
+	if(s.p1.x < s.p2.x )
+	{
+		if( s.p1.x < p.x && p.x < s.p2.x )
+			i=i+1;
+	}
+	else
+	{
+		if(s.p2.x < p.x && p.x < s.p1.x )
+			i=i+1;
+	}
+
+	if(s.p1.y < s.p2.y )
+	{
+		if( s.p1.y < p.y && p.y < s.p2.y )
+			i=i+1;
+	}
+	else
+	{
+		if(s.p2.y < p.y && p.y < s.p1.y )
+			i=i+1;
+	}
+
+	if( s.d.a*p.x+s.d.b*p.y+s.d.c == 0)
+		i++;
+
+	if(i == 3)
+		return true;
+	else 
+		return false;
+
+}
+
+bool intersection(Point2i o1, Point2i p1, Point2i o2, Point2i p2, Point2i &r)
+{
+    Point2i x = o2 - o1;
+    Point2i d1 = p1 - o1;
+    Point2i d2 = p2 - o2;
+	Point2i v;
+
+    float cross = d1.x*d2.y - d1.y*d2.x;
+	double t1 = (x.x * d2.y - x.y * d2.x)/cross;
+    v = o1 + d1 * t1;
+	if ((abs(cross) < /*EPS*/1e-8) || (v.x < min(o2.x, p2.x)) || (v.x > max(o2.x, p2.x)) || (v.y < min(o2.y, p2.y)) || (v.y > max(o2.y, p2.y)))
+	{
+        return false;
+	}
+	else
+	{
+    r = v;
+    return true;
+	}
+}
+
+int pscalaire(Point p1, Point p2, Point p3, Point p4){
+
+	int r;
+
+	r = (p2.x-p1.x)*(p4.x-p3.x)+(p2.y-p1.y)*(p4.y-p3.y);
+
+	return r;
+}
+
+Point sym(Segment s, Point a){
+
+	Point r;
+	r.y = 1/(1+s.d.a^2/s.d.b^2)*(2*s.p1.y-a.y-s.d.a/s.d.b*(2*a.x-s.d.a/s.d.b*a.y-2*s.p1.x));
+	r.x = a.x+s.d.a/s.d.b*(r.y-a.y);
+
+	return r;
+}
+
+bool getPerpendiculaire(Point2i A, Point2i B, Point2i &r)
+{
+	Point v;
+	v.x = B.x - A.x; v.y = B.y - A.y;
+	float mag;
+    mag = sqrt (float(v.x*v.x + v.y*v.y)); v.x = v.x / mag; v.y = v.y / mag;
+	int temp;
+	temp = v.x; v.x = -v.y; v.y = temp;
+	int length = 10;
+	Point C;
+    C.x = B.x + v.x * length; C.y = B.y + v.y * length;
+	if (mag == 0)
+	{
+        return false;
+	}
+	else
+	{
+    r =  C;
+    return true;
+	}
+}
+
+void on_curseur( int, void* )
+{
+	
+}
+
+void createcurseurs(){
+	//crée une fenêtre de curseurs
+
+	
+	namedWindow(curseurWindowName,0);
+	//crée de la mémoire pour stocker les noms des curseurs
+	char curseurName[50];
+	sprintf( curseurName, "UpperCanny", thresholdCanny);
+	sprintf( curseurName, "CenterDetection", thresholdCenter);
+
+	sprintf( curseurName, "Min Red", minRed);
+	sprintf( curseurName, "Max Red", maxRed);
+	sprintf( curseurName, "Max Noire", maxNoire);
+	sprintf( curseurName, "Max Blanche", maxBlanche);
+	sprintf( curseurName, "Min Jaune", minJaune);
+	sprintf( curseurName, "Max Jaune", maxJaune);
+
+	      
+	createTrackbar( "UpperCanny", curseurWindowName, &thresholdCanny, 50, on_curseur );
+	createTrackbar( "CenterDetection", curseurWindowName, &thresholdCenter, 50, on_curseur );
+	
+
+	createTrackbar( "Min Red", curseurWindowName, &minRed, 255, on_curseur );
+	createTrackbar( "Max Red", curseurWindowName, &maxRed, 255, on_curseur );
+	createTrackbar( "Max Noire", curseurWindowName, &maxNoire, 255, on_curseur );
+	createTrackbar( "Max Blanche", curseurWindowName, &maxBlanche, 255, on_curseur );
+	createTrackbar( "Min Jaune", curseurWindowName, &minJaune, 255, on_curseur );
+	createTrackbar( "Max Jaune", curseurWindowName, &maxJaune, 255, on_curseur );
+
+}
+
+//create a table of 8 points
+struct Pointrect rectangleBillard[100]; // On autorise 100 cliques de l'utilisateur -> c'est sale : à changer -> du genre désactiver la possibilité de cliquer après le douzième point
+
+//tableau des 4 points moyens
+struct Pointrect rectMoy[4];
+
+//La canne
+struct Pointrect cannePoint[2];
+
+// Fonction pour récupérer les actions de la souris
+void CallBackFunc(int event, int x, int y, int flags, void* userdata)
+{
+     if  ( event == EVENT_LBUTTONDOWN ) // Lorsqu'on clique on crée des points
+     {
+          //cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
+		  rectangleBillard[compteurDePoint].xCoord = x;
+		  rectangleBillard[compteurDePoint].yCoord = y;
+		  cout << "Le point numéro " << compteurDePoint << " a pour position (" << rectangleBillard[compteurDePoint].xCoord << ", " << rectangleBillard[compteurDePoint].yCoord << ")." << endl;
+		  compteurDePoint++;
+	 }
+}
+
+int main(int argc, char* argv[])
+{
+	posBlanche.x = 0;
+	posBlanche.y = 0;
+	//Initialisation de rectangleBillard
+	rectangleBillard[0].xCoord = 85;
+	rectangleBillard[0].yCoord = 309;
+	rectangleBillard[1].xCoord = 58;
+	rectangleBillard[1].yCoord = 102;
+	rectangleBillard[2].xCoord = 80;
+	rectangleBillard[2].yCoord = 74;
+	rectangleBillard[3].xCoord = 287;
+	rectangleBillard[3].yCoord = 69;
+	rectangleBillard[4].xCoord = 349;
+	rectangleBillard[4].yCoord = 68;
+	rectangleBillard[5].xCoord = 540;
+	rectangleBillard[5].yCoord = 61;
+	rectangleBillard[6].xCoord = 575;
+	rectangleBillard[6].yCoord = 84;
+	rectangleBillard[7].xCoord = 571;
+	rectangleBillard[7].yCoord = 257;
+	rectangleBillard[8].xCoord = 560;
+	rectangleBillard[8].yCoord = 305;
+	rectangleBillard[9].xCoord = 358;
+	rectangleBillard[9].yCoord = 319;
+	rectangleBillard[10].xCoord = 294;
+	rectangleBillard[10].yCoord = 316;
+	rectangleBillard[11].xCoord = 103;
+	rectangleBillard[11].yCoord = 329;
+	myROI = cvRect( rectangleBillard[0].xCoord, rectangleBillard[2].yCoord, rectangleBillard[7].xCoord - rectangleBillard[0].xCoord, rectangleBillard[8].yCoord - rectangleBillard[2].yCoord);
+	
+    // open the video file for reading
+    VideoCapture cap("Capture_20150204_1.mp4"); 
+
+    // if not success, exit program
+    if ( !cap.isOpened() )  
+    {
+         cout << "Cannot open the video file" << endl;
+         return -1;
+    }
+
+    const char* pzOriginalWindowName = "Original Video, Définissez les bandes ici";
+    namedWindow(pzOriginalWindowName, CV_WINDOW_AUTOSIZE); 
+
+    const char* pzRotatingWindowName = "Rotated Video";
+    //namedWindow( pzRotatingWindowName, CV_WINDOW_AUTOSIZE );
+	
+    const char* pzCirclesWindowName = "Circles Video";
+    //namedWindow( pzCirclesWindowName, CV_WINDOW_AUTOSIZE );
+
+	//Create the curseurs window
+	createcurseurs();
+
+    double iAngle = 180;
+	double iAngle1 = 180;
+	double iAngle2 = 180;
+	double iAngle3 = 180;
+	double iAngle4 = 180;
+
+    while (true)
+    {
+        Mat matOriginalFrame;
+
+		// read a new frame from video
+        bool bSuccess = cap.read(matOriginalFrame); 
+
+		//if not success, break loop
+        if (!bSuccess) 
+		{
+			cout << "Cannot read the frame from video file" << endl;
+			break;
+        }
+
+        imshow(pzOriginalWindowName, matOriginalFrame);
+
+		//set the callback function for any mouse event
+		setMouseCallback( pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
+
+		//On affiche la fenêtre recadrée que lorsqu'on a fini de cliquer les 12 points
+		if(compteurDePoint > 11)
+		{
+			/*
+			// évite que le calcul des points soit fait pour chaque image après la saisie du 8eme point
+			if(compteurDePoint == 12)
+			{
+				// calcul des 4 points moyens à partir des 8 cliqués
+
+				//pour les x
+				rectMoy[0].xCoord = (rectangleBillard[0].xCoord + rectangleBillard[1].xCoord) / 2;
+				rectMoy[1].xCoord = (rectangleBillard[2].xCoord + rectangleBillard[3].xCoord + rectangleBillard[4].xCoord + rectangleBillard[5].xCoord) / 4;
+				rectMoy[2].xCoord = (rectangleBillard[6].xCoord + rectangleBillard[7].xCoord) / 2;
+				rectMoy[3].xCoord = (rectangleBillard[8].xCoord + rectangleBillard[9].xCoord + rectangleBillard[10].xCoord + rectangleBillard[11].xCoord) / 4;
+
+				//pour les y
+				rectMoy[0].yCoord = (rectangleBillard[0].yCoord + rectangleBillard[1].yCoord) / 2;
+				rectMoy[1].yCoord = (rectangleBillard[2].yCoord + rectangleBillard[3].yCoord + rectangleBillard[4].yCoord + rectangleBillard[5].yCoord) / 4;
+				rectMoy[2].yCoord = (rectangleBillard[6].yCoord + rectangleBillard[7].yCoord) / 2;
+				rectMoy[3].yCoord = (rectangleBillard[8].yCoord + rectangleBillard[9].yCoord + rectangleBillard[10].yCoord + rectangleBillard[11].yCoord) / 4;
+
+		
+				// calcul de l'angle
+				iAngle1 = (atan2(rectangleBillard[0].xCoord - rectangleBillard[1].xCoord , rectangleBillard[0].yCoord - rectangleBillard[1].yCoord)) * (180/PI);
+				iAngle2 = (atan2(rectangleBillard[2].yCoord - rectangleBillard[5].yCoord , rectangleBillard[5].xCoord - rectangleBillard[2].xCoord)) * (180/PI);
+				iAngle3 = (atan2(rectangleBillard[7].xCoord - rectangleBillard[6].xCoord , rectangleBillard[7].yCoord - rectangleBillard[6].yCoord)) * (180/PI);
+				iAngle4 = (atan2(rectangleBillard[11].yCoord - rectangleBillard[8].yCoord , rectangleBillard[8].xCoord - rectangleBillard[11].xCoord)) * (180/PI);
+		 
+				iAngle = (iAngle1 + iAngle2 + iAngle3 + iAngle4) / 4;
+
+				//get the affine transformation matrix
+				Mat matRotation = getRotationMatrix2D( Point(matOriginalFrame.cols / 2, matOriginalFrame.rows / 2), - iAngle , 1 ); //iAngle = 182
+ 
+				warpAffine( matOriginalFrame, matRotatedFrame, matRotation, matOriginalFrame.size() );
+
+				//ROI: Region Of Interest : on ne va traiter que cette partie de la matrice
+				// Recadrer l'image
+				myROI = cvRect( rectMoy[0].xCoord, rectMoy[1].yCoord, rectMoy[2].xCoord - rectMoy[0].xCoord, rectMoy[3].yCoord - rectMoy[1].yCoord);
+
+				compteurDePoint++; //évite que le calcul se fasse plein de fois
+			}
+			else
+			{
+				matRecadrer = matRotatedFrame(myROI);
+			}*/
+			matRecadrer = matOriginalFrame; // à enlever
+		}
+		else //On prend l'image d'origine tant qu'on a pas recadré l'image
+		{
+			matRecadrer = matOriginalFrame;
+		}
+
+/////////////////////////////////////////////// Detection de Lignes //////////////////////////////////////////////////////////////////////////////////////////////
+
+		Mat matLine;
+	
+		if(posBlanche.x == 0)//Si pas de canne
+		{
+			//Alors on cherche à l'intérieur de tout le billard
+			ROICanne = myROI;
+			cout << "lines est empty" << endl;
+		}
+		else//Canne
+		{
+			//Alors on cherche à proximité de la position précédente de la canne
+			ROICanne = cvRect(posBlanche.x - ecartCanne, posBlanche.y - ecartCanne, 2 * ecartCanne, 2 * ecartCanne);
+			cout << "On a trouvé une canne" << endl;
+		}
+
+		matLine = matOriginalFrame(ROICanne);
+		
+		Canny(matLine, dst, 50, 200, 3);
+
+		HoughLinesP(dst, lines, 1, CV_PI/360, 50, minLineLengh, maxLineGap ); //Plus le 3eme membre est petit plus la fonction est précise mais lente
+		
+		for( size_t i = 0; i < lines.size(); i++ )
+		{
+			Vec4i l = lines[i];
+			
+			line( matLine, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 1, CV_AA);
+			//On essaye d'identifier les lignes correspondant à la canne	
+		}
+		
+		//Calcul de la moyenne des coeficients directeurs
+		for (size_t j = 0; j < lines.size(); j++)
+		{
+			if(lines[j][2] - lines[j][0] != 0) //On évite la division par zéro
+			{
+				int coefDir;
+				//int ordOrig;
+				int maxX = max(lines[j][0], lines[j][2]);
+				int minX = min(lines[j][0], lines[j][2]);
+				if(lines[j][0] == maxX)
+				{
+					int temp = lines[j][3];
+					lines[j][3] = lines[j][1];
+					lines[j][1] = temp;
+				}
+				coefDir = (lines[j][3] - lines[j][1]) / (maxX - minX);
+				//ordOrig = lines[j][1] - coefDir * lines[j][0];
+				//On fait la moyenne des coef directeurs et des ordonnées à l'origine
+				coefDirCanne = (coefDirCanne + coefDir) / (j + 1);
+				//ordOrigCanne = (ordOrigCanne + ordOrig) / (j + 1);
+			}
+		}
+		//Calcul des max en min
+		for(size_t k = 0; k < lines.size(); k++)
+		{
+			maxCanneX = max(lines[k][0], lines[k][2]);
+			maxCanneY = max(lines[k][1], lines[k][3]);
+			minCanneX = min(lines[k][0], lines[k][2]);
+			minCanneY = min(lines[k][1], lines[k][3]);
+		}
+
+		if(coefDirCanne <= 0)
+		{
+			cannePoint[0].xCoord = minCanneX;
+			cannePoint[0].yCoord = minCanneY;
+			cannePoint[1].xCoord = maxCanneX;
+			cannePoint[1].yCoord = maxCanneY;
+		}
+		if(coefDirCanne > 0)
+		{
+			cannePoint[0].xCoord = minCanneX;
+			cannePoint[0].yCoord = maxCanneY;
+			cannePoint[1].xCoord = minCanneX;
+			cannePoint[1].yCoord = maxCanneY;
+		}
+		imshow(pzRotatingWindowName, matLine);
+////////////////////////////////////// Detection de cercles //////////////////////////////////////////////////////////////////////
+
+
+		//On crée deux matrices
+		//src : image d'origine
+		//gray : image convertie en noir et blanc
+		Mat src, gray;
+		//src = imread( "building.jpg", 1 );resize(src,src,Size(640,480));
+		//cap.read(src);
+		src = matRecadrer;
+		//Convert src in black and white and store it in matrix gray
+		cvtColor( src, gray, CV_BGR2GRAY );
+ 
+		// Reduce the noise so we avoid false circle detection
+		// Take gray, return gray, 
+		GaussianBlur( gray, gray, Size(13, 13), 1, 1 );
+ 
+		vector<Vec3f> circles;
+
+		//circles.resize(16); // Redéfini le nombre de cercles recherchés -> il faudrait trouver comment utiliser gpu car dasn ce cas le nombre de cercles est un paramêtre de HoughCircle -> c'est mieux !!!
+ 
+		// Apply the Hough Transform to find the circles
+		HoughCircles( gray, circles, CV_HOUGH_GRADIENT, 1, DIST_MIN, thresholdCanny, thresholdCenter, MIN_SIZE, MAX_SIZE );
+ 
+
+		// Draw the circles detected
+		for( size_t i = 0; i < circles.size(); i++ )
+		{
+			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+			int radius = cvRound(circles[i][2]);     
+			//circle( src, center, 2, Scalar(0,255,0), -1, 8, 0 );// circle center     
+			circle( src, center, radius, Scalar(255,255,0), 1, 8, 0 );// circle outline
+			//cout << "center : " << center << "\nradius : " << radius << endl;
+		}
+
+
+////////////////////////////////////// Détection de couleurs à l'intérieur des cercles ///////////////////////////////////////////////////
+		Mat img_rgb, img_hsv;
+		img_rgb = src;
+		//On converti img_rgb en img_hsv
+		cvtColor(img_rgb,img_hsv,CV_RGB2HSV);
+		//On crée un tableau des billes
+		struct Bille TableauBilles[16];
+		//On cherche le couleur à l'intérieur de chaque cercle
+		for (size_t i = 0; i < circles.size() ; i++) //pour éviter les erreures d'assertion
+		{
+			
+			//for(int j = 0; j < 10; j++)//On parcours quelques points de la bille pour faire une moyenne
+			//{
+			int bla = compteurDeCouleur % 1; //On fait l'opération une fois tous les 2 tours
+			if(bla == 0)
+			{
+				//Dans la fonction qui suit y est en premier et x en second
+				
+				//Le "point" la ligne qui suit est d'une importance primordiale !!!!
+				Vec3b intensity = img_hsv.at<Vec3b>(Point(cvRound(circles[i][0]), cvRound(circles[i][1])));//On s'intéresse ici au point d'une des billes
+				/* In case of BGR coded image
+				int blue = intensity.val[0];
+				int green = intensity.val[1];
+				int red = intensity.val[2];
+				*/
+				
+				
+				//cout << "Bille n° " << i << " is ( " << blue << " ," << green << " ," << red << " )" << endl;
+				
+				// In case of HVS coded image
+				int intens0 = (int)intensity.val[0];
+				int intens1 = (int)intensity.val[1];
+				int intens2 = (int)intensity.val[2];
+
+				//Si la couleur est comprise dans un intervalle correct alors on considère qu'on a une bille sinon non
+				
+				
+				if(intens1 < maxBlanche)
+				{
+					if(compteurDeLigne ==0)
+						{
+							TableauBilles[i].color = "Blanche";
+						//cout << "Color " << TableauBilles[i].color <<endl;
+						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+						posBlanche.x = circles[i][0];
+						posBlanche.y = circles[i][1];
+						cout << posBlanche.x << endl;
+						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(255,255,255));
+					}
+					else if((circles[i][0] < posBlanche.x + 50) && (circles[i][0] > posBlanche.x - 50))
+					{
+						TableauBilles[i].color = "Blanche";
+						//cout << "Color " << TableauBilles[i].color <<endl;
+						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+						posBlanche.x = circles[i][0];
+						posBlanche.y = circles[i][1];
+						cout << posBlanche.x << endl;
+						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(255,255,255));
+					}
+					else
+					{
+
+					}
+				}
+				else if(intens2 < maxNoire)
+				{
+					TableauBilles[i].color = "Noire";
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					
+					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,0,0));  
+				}
+				else if(intens0 < maxRed && intens0 > minRed)
+				{
+					TableauBilles[i].color = "Rouge";
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					
+					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,0,255));  
+				}
+				else if(intens0 > minJaune && intens0 < maxJaune)
+				{
+					TableauBilles[i].color = "Jaune";
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					
+					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(0,255,255));  
+				}
+				else
+				{
+					TableauBilles[i].color = "Unknown"; // for unknonw : ce n'est pas un bille
+					//cout << "Color " << TableauBilles[i].color <<endl;
+					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					
+					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])),1,1,Scalar(255,0,0));  
+				}
+				//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+				//cout << "Color " << TableauBilles[i].color <<endl;
+				//cout << "Couleur ( " << intensity[0] << ", " << intensity[1] << ", " << intensity[2] << " )" << endl;
+				
+			}
+			else
+			{
+
+			}
+		}
+//////////////////////////////////////////// Rebonds ///////////////////////////////////////////////////////////////////////////////////////////////////////		
+
+		Point apt[NBR];
+		Point bpt[NBR];
+		Point cb;
+
+		// coordonnées des points de départ
+		if(compteurDeLigne != 0)
+		{
+			cb.x = posBlanche.x;
+			cb.y = posBlanche.y;
+			apt[0].x = cannePoint[0].xCoord;
+			apt[0].y = cannePoint[0].yCoord;
+			bpt[0].x = cannePoint[1].xCoord;
+			bpt[0].y = cannePoint[1].yCoord;
+		
+
+
+		// equation des bords et de la canne
+
+		Segment bord[6];
+
+		for(int i = 0; i < 12; i += 2)
+		{
+			bord[i/2]=segment(Point(rectangleBillard[i].xCoord, rectangleBillard[i].yCoord), Point(rectangleBillard[i+1].xCoord, rectangleBillard[i+1].yCoord));
+		}
+
+		Segment canne = segment (apt[0],bpt[0]);
+
+		// equation du points d'intersection
+
+		Segment bs[NBR];
+
+		for(int j = 1; j < NBR ; j++ ){
+
+			for(int i =0; i < 6; i++){
+				Point crossingPoint;
+				intersection(canne.p1, canne.p2, bord[i].p1, bord[i].p2, crossingPoint); //On  trouve l'intersection
+				circle( src, crossingPoint, 1, Scalar(0,0,0), 3, 8, 0 );
+				Point bordPerpendiculaire;
+				getPerpendiculaire(bord[i].p1, crossingPoint, bordPerpendiculaire); //On trouve la perpendiculaire au point d'intersection
+				//circle( src, Point(bordPerpendiculaire.x, bordPerpendiculaire.y), 1, Scalar(255,255,255), 3, 8, 0 );
+				line( matOriginalFrame, crossingPoint, Point(bordPerpendiculaire.x, bordPerpendiculaire.y), Scalar(255,255,255), 2, CV_AA);
+			}
+		bpt[j] = sym(bs[j], apt[0]);
+		}
+		}
+		for(int i = 0; i < 12; i+=2)
+		{
+			line( matOriginalFrame, Point(rectangleBillard[i].xCoord, rectangleBillard[i].yCoord), Point(rectangleBillard[i+1].xCoord, rectangleBillard[i+1].yCoord), Scalar(0,255,255), 2, CV_AA);
+		}
+		circle( src, apt[2], 1, Scalar(255,255,255), 3, 8, 0 );
+		circle( src, apt[1], 1, Scalar(255,255,255), 3, 8, 0 );
+		circle( src, bpt[2], 1, Scalar(255,255,255), 3, 8, 0 );
+		circle( src, bpt[1], 1, Scalar(255,255,255), 3, 8, 0 );
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		compteurDeCouleur ++;
+		compteurDeLigne ++;
+		cout << compteurDeLigne << endl;
+///////////////////////////////////////////// Affichage ///////////////////////////////////////////////////////////////////////////////
+
+		line( matLine, Point(cannePoint[0].xCoord, cannePoint[0].yCoord), Point(cannePoint[1].xCoord, cannePoint[1].yCoord), Scalar(255,255,0), 5, CV_AA);
+
+		// Affiche le resultat
+		
+			
+		imshow(pzCirclesWindowName, src);
+
+		//wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
+		if (waitKey(30) == 27) 
+		{
+			cout << "esc key is pressed by user" << endl; 
+			break; 
+		}
+	}
+    return 0;
+}
