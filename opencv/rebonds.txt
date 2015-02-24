@@ -9,6 +9,12 @@
 using namespace cv;
 using namespace std;
 
+
+struct Vecteur {
+	int x;
+	int y;
+};
+
 struct Droite{
 	int a;
 	int b;
@@ -32,6 +38,15 @@ Droite droite (Point p1, Point p2){
 	r.c =-p1.y*p2.x+p1.x*p2.y;
 
 	return r; 
+}
+
+Droite droitev (Point p, Vecteur v){
+
+	Droite r;
+	r.a = v.y;
+	r.b = -v.x;
+	r.c = -r.a*p.x-r.b*p.y;
+	return r;
 }
 
 Segment segment (Point p1, Point p2){
@@ -103,9 +118,25 @@ int pscalaire(Point p1, Point p2, Point p3, Point p4){
 Point sym(Segment s, Point a){
 
 	Point r;
-	r.y = 1/(1+s.d.a^2/s.d.b^2)*(2*s.p1.y-a.y-s.d.a/s.d.b*(2*a.x-s.d.a/s.d.b*a.y-2*s.p1.x));
+	r.y = 1/(1+s.d.a*s.d.a/s.d.b*s.d.b)*(2*s.p1.y-a.y-s.d.a/s.d.b*(2*a.x-s.d.a/s.d.b*a.y-2*s.p1.x));
 	r.x = a.x+s.d.a/s.d.b*(r.y-a.y);
 
+	return r;
+}
+
+int distancepp(Point p1, Point p2){
+
+	int r;
+	
+	r = (int)sqrt((p1.x-p2.x)*(p1.x-p2.x)+(p1.y-p2.y)*(p1.y-p2.y));
+
+
+	return r;
+}
+
+int distancepd(Point p, Droite d){
+	int r;
+	r = (int)(1/(sqrt(d.a*d.a+d.b*d.b)*abs(d.a*p.x+d.b*p.y+d.c)));
 	return r;
 }
 
@@ -142,35 +173,69 @@ bpt[0].x=4;bpt[0].y=1;
 
 
 
-// equation des bords et de la canne
+// equation des bords, des trous, et de la canne
 
 Segment bord[6];
 
 for(int i = 0; i < 12; i += 2)
 {
 	    bord[i/2]=segment(coin[i],coin[i+1]);
+
 }
+
+Segment trou[6];
+
+for(int i=1;i < 13; i += 2){
+
+	int j = i%12 + 1;
+	trou[(i+1)/2] = segment(coin[i],coin[j]);
+
+}
+
 
 Segment canne = segment (apt[0],bpt[0]);
 
-// equation du points d'intersection
+// equation des points d'intersection
 
 Segment bs[NBR];
 
 for(int j = 1; j < NBR ; j++ ){
 
+
+
+	//recherche du point d'intersection :
+
 	for(int i =0; i < 6; i++){
 
-		if(appartient(bord[i],croisement(canne.d,bord[i].d))){
+
+		if(appartient(trou[i],croisement(canne.d,trou[i].d))){
 			if(pscalaire(bpt[j-1],apt[j-1],apt[j-1],croisement(canne.d,bord[i].d)) > 0){
-				apt[j] = croisement(canne.d,bord[i].d);
-				bs[j] = bord[i];
+
+					apt[j] = croisement(canne.d,trou[i].d);
+					i = 6;
+					j = NBR;
+				}
+		}
+		else{
+			if(appartient(bord[i],croisement(canne.d,bord[i].d))){
+
+				if(pscalaire(bpt[j-1],apt[j-1],apt[j-1],croisement(canne.d,bord[i].d)) > 0){
+
+					apt[j] = croisement(canne.d,bord[i].d);
+					bs[j] = bord[i];
+				}
 			}
 		}
+
+
+
+
+
+
 	}
+
 bpt[j] = sym(bs[j], apt[0]);
 
-}
 }
 
 
