@@ -1,0 +1,163 @@
+%%(encoding:utf-8)
+\documentclass{beamer}
+\usepackage[T1]{fontenc}
+
+\usepackage[utf8x]{inputenc}
+\usepackage{xspace}
+\usepackage[francais]{babel}
+\usepackage{tikz}
+\usepackage{todo}
+
+\usetheme{supelec}
+
+\title{Deuxième soutenance de projet}
+\author{Guillaume \textsc{Burgaud}, Jean-Guillaume \textsc{François} et Bastien \textsc{Nogaro}}
+\institute{%
+  Projet CUBI
+}
+\date[\today]{%
+  \today\\
+  {\tiny\timestamp}%
+}
+
+%% Utilisation du gras en police à chasse fixe (Courier est trop maigre)
+\newcommand{\ttbf}[1]{\texttt{\bfseries{#1}}}
+\makeatletter %% idem pour le texte verbatim
+\renewcommand{\verbatim@font}{\ttfamily\bfseries}
+\makeatother
+
+\begin{document}
+
+%% Planche de titre
+\frame{\titlepage}
+
+%% Plan
+\frame{%
+  \frametitle{Déroulement de la présentation}
+  \setlength{\parindent}{2em}
+  \tableofcontents
+}
+
+\section{Rappel des composantes du projet}
+\begin{frame}
+  \frametitle{Rappel des composantes du projet}
+  \begin{block}{%
+    Objectifs~:
+  }
+  \begin{itemize}
+    \item Réaliser un système capable d'anticiper la trajectoire des boules d'un billard en fonction de la position de la queue, et la projeter sur le tapis
+    \item Double aspect, matériel et logiciel, a concevoir (ensemble capteurs + projecteur + unité de traitement + partie logicielle)
+    
+  \end{itemize}
+  \end{block}
+ 
+    
+\end{frame}
+
+
+\section{Choix du mode de vente}
+\begin{frame}
+	\frametitle{Choix du mode de vente}
+	\begin{block}{Les options :}
+		\begin{itemize}
+			\item Logiciel seul
+			\item Logiciel + webcam + projecteur
+			\item Package (i.e boîte contenant l'intégralité des composants)
+			\item Smartphone
+		\end{itemize}
+	\end{block}
+	\begin{block}{Les paramètres à prendre en compte :}
+		\begin{itemize}
+			\item Le public visé
+			\item La rentabilité du projet
+			\item La faisabilité
+		\end{itemize}
+	\end{block}
+\end{frame}
+\begin{frame}
+	\frametitle{Comparaison des options}
+		\begin{center}
+			\includegraphics[width=.75\textwidth]{images/options.png} 
+		\end{center}
+
+\end{frame}
+
+\begin{frame}
+	\frametitle{Choix du mode de vente}
+	\begin{block}{Solution choisie?}
+		\begin{itemize}
+			\item Pour le moment: aucune solution arrêtée
+			\item Mais: Conception du package en cours, au cas où cette solution serait retenue (CAO du châssis)
+		\end{itemize}
+	\end{block}
+	\begin{block}{La solution smartphone :}
+		\begin{itemize}
+			\item Adaptation aux différents modèles pas forcément évidente (caméras et OS différents)
+		\end{itemize}
+		$\Rightarrow$ Solution non développée pour le moment
+	\end{block}
+\end{frame}
+
+\begin{frame}
+	\frametitle{Les différents produits et services}
+	\begin{block}{Ce qu'il faut commercialiser (suivant les formules) :}
+		\begin{itemize}
+			\item Le logiciel (dans tous les cas)
+			\item La webcam
+			\item Le projecteur
+			\item L’installation (le plus cher, en déplacement et main d’œuvre)
+		\end{itemize}
+	\end{block}
+\end{frame}
+\section{Développement récents}
+\subsection{Le châssis}
+\begin{frame}
+	\frametitle{CAO du châssis}
+	\begin{block}{Intérêt du châssis}
+		\begin{itemize}
+			\item Un seul objet à vendre: pas de montage
+			\item Facilité d'installation
+			\item Produit plus "professionnel"
+		\end{itemize}
+	\end{block}
+	\begin{center}
+	\includegraphics[width=.5\textwidth]{images/support.png} 
+	\end{center}
+\end{frame}
+\subsection{Le logiciel}
+\begin{frame}[fragile]
+	\frametitle{L'avancement de la partie logicielle}
+	\begin{block}{Définition du repère}
+		Calibrage du programme en sélectionnant (par clics) 12 points particuliers du billard. Le programme identifie ainsi les bords, ainsi que les trous.
+	\end{block}
+	\begin{block}{Détection des boules}
+		Implémentée à l'aide de la transformée généralisée de Hough (fonction \texttt{HoughCircles})
+	\end{block}
+
+	\begin{block}{Identification des boules (couleur)}
+		On convertit d'abord l'image capturée au format RGB (Red-Green-Blue) en format HSV (Hue-Saturation-Value). La couleur apparaît dans la valeur H.
+	\end{block}
+\end{frame}
+
+\begin{frame}
+	\begin{block}{Détection des lignes}
+		On utilise également la transformée généralisée de Hough (fonction \texttt{HoughLinesP}). \todo{Compléter l'explication, difficultés rencontrées, solutions}.
+	\end{block}
+\end{frame}
+	
+\section{Bilan}
+\begin{frame}
+	\frametitle{Bilan}
+	\begin{center}
+		\includegraphics[width=.75\textwidth]{images/bilan.png}
+	\end{center}
+\end{frame}	
+
+\section{Mise à jour des objectifs}
+
+
+\begin{frame}
+	\frametitle{todos}
+	\todos
+\end{frame}
+\end{document}
