@@ -1,3 +1,6 @@
+
+
+
 #include <iostream>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -7,29 +10,12 @@
 #include <ostream>
 #include <fstream>
 #define NBR					4
-
-using namespace cv;
-using namespace std;
+#include "h1.h"
 
 
 
 
-struct Vecteur {
-	int x;
-	int y;
-};
 
-struct Droite{
-	int a;
-	int b;
-	int c;
-};
-
-struct Segment{
-	Droite d;
-	Point p1;
-	Point p2;
-};
 
 
 Droite droite (const Point p1, const Point p2){
@@ -149,7 +135,15 @@ int distancepd(const Point p, const Droite d){
 	return r;
 }
 
-vector<Point> algo (const Point coin[12],const Point boules[15], const Point blanche,const Point cane[2]){
+Point projection(const Droite d, const Point p){
+	Point r;
+	r.x = (d.b*d.b*p.x-d.a*(d.b*p.y+d.c))/(d.a*d.a+d.b*d.b);
+	r.y = (d.a*d.a*p.y-d.b*(d.a*p.x+d.c))/(d.a*d.a+d.b*d.b);
+	return r;
+}
+
+
+vector<Point> rebond (const Point coin[12],const Point boules[15], const Point blanche,const Point cane[2],const int rayon){
 
 
 		// tableau dynamique des points a et b
@@ -163,15 +157,13 @@ vector<Point> algo (const Point coin[12],const Point boules[15], const Point bla
 	}
 	Point cb;
 
-	//coordonnées des boules
-	vector<Point> boules;
-	for (int i =0 ; i < 15;i++){apt.push_back(p);}
+	
 
 		// coordonnées des points de départ
 
 	cb.x=blanche.x;cb.y=blanche.y; // boule blanche
 
-	if(distancepp(canne[0],blanche)<distancepp(canne[1],blanche){
+	if(distancepp(cane[0],blanche)<distancepp(cane[1],blanche)){
 		apt[0] = cane[0]; // pointe canne puis déplacement boule blanche
 		bpt[0] = cane[1]; // arrière canne puis déplacement symétrique
 	}else{
@@ -209,19 +201,20 @@ vector<Point> algo (const Point coin[12],const Point boules[15], const Point bla
 
 	Segment bs[6];
 
-	int Lmax = 6;
+	int Lmax = 5;
 	int j = 0;
-	int r = 3;
+	int r = rayon;
 	int t = 0;
 
 
 
-	while( j < Lmax){
+	while(j < Lmax){
 		
 		//recherche du point d'intersection :
+
 		for(int i = 0; i < 6; i++){
 			if(appartient(trou[i],croisement(canne[j].d,trou[i].d))){
-				if(pscalaire(bpt[j-1],apt[j-1],apt[j-1],croisement(canne[j].d,bord[i].d)) > 0){
+				if(pscalaire(bpt[j],apt[j],apt[j],croisement(canne[j].d,bord[i].d)) > 0){
 						apt[j] = croisement(canne[j].d,trou[i].d);
 						t = 1;
 					}
@@ -239,22 +232,32 @@ vector<Point> algo (const Point coin[12],const Point boules[15], const Point bla
 			}
 		}
 
-		if(t == 1 ){ j = Lmax }
+		
+		
 		/*
+
 		for(int i = 0; i < 15;i++){
 			Droite d = droite(apt[j],apt[j+1]);
-		if(distancepd(boules[i],d)<r){
-
-		apt[j+1].x = (-sqrt(-d.b*d.b*(-4*d.a*d.a*r*r+d.a*d.a*boules[i].x*boules[i].x+2*d.a*d.b*boules[i].x*boules[i].y+2*d.a*d.c*boules[i].x-4*d.b*d.b*r*r+d.b*d.b*boules[i].y*boules[i].y+2*d.b*d.c*boules[i].y+d.c*d.c))-d.a*d.b*boules[i].y-d.a*d.c+d.b*d.b*boules[i].x)/(d.a*d.a+d.b*d.b);
-		apt[j+1].y =(d.a*sqrt(-d.b*d.b*(-4*d.a*d.a*r*r+d.a*d.a*boules[i].x*boules[i].x+2*d.a*d.b*boules[i].x*boules[i].y+2*d.a*d.c*boules[i].x-4*d.b*d.b*r*r+d.b*d.b*boules[i].y*boules[i].y+2*d.b*d.c*boules[i].y+d.c*d.c))+d.a*d.a*d.b*boules[i].y-d.a*d.b*d.b*boules[i].x-d.b*d.b*d.c)/(d.b*(d.a*d.a+d.b*d.b));
-		
-
+			if(distancepd(boules[i],d)<r){
+				Point p = boules[i];
+				//apt[j+1].x = (-(int)sqrtf(-d.b*d.b*(-4*d.a*d.a*r*r+d.a*d.a*boules[i].x*boules[i].x+2*d.a*d.b*boules[i].x*boules[i].y+2*d.a*d.c*boules[i].x-4*d.b*d.b*r*r+d.b*d.b*boules[i].y*boules[i].y+2*d.b*d.c*boules[i].y+d.c*d.c))-d.a*d.b*boules[i].y-d.a*d.c+d.b*d.b*boules[i].x)/(d.a*d.a+d.b*d.b);
+				//apt[j+1].y =(d.a*(int)sqrtf(-d.b*d.b*(-4*d.a*d.a*r*r+d.a*d.a*boules[i].x*boules[i].x+2*d.a*d.b*boules[i].x*boules[i].y+2*d.a*d.c*boules[i].x-4*d.b*d.b*r*r+d.b*d.b*boules[i].y*boules[i].y+2*d.b*d.c*boules[i].y+d.c*d.c))+d.a*d.a*d.b*boules[i].y-d.a*d.b*d.b*boules[i].x-d.b*d.b*d.c)/(d.b*(d.a*d.a+d.b*d.b));
+				apt[j+1].x = (-(int)sqrtf(-d.b*d.b*(-4*d.a*d.a*r*r+d.a*d.a*p.x*p.x+2*d.a*d.b*p.x*p.y+2*d.a*d.c*p.x-4*d.b*d.b*r*r+d.b*d.b*p.y*p.y+2*d.b*d.c*p.y+d.c*d.c))-d.a*d.b*p.y-d.a*d.c+d.b*d.b*p.x)/(d.a*d.a+d.b*d.b);
+				apt[j+1].y = (d.a*(int)sqrtf(-d.b*d.b*(-4*d.a*d.a*r^2+d.a*d.a*p.x^2+2*d.a*d.b*p.x*p.y+2*d.a*d.c*p.x-4*d.b*d.b*r^2+d.b*d.b*p.y^2+2*d.b*d.c*p.y+d.c*d.c))+d.a*d.a*d.b*p.y-d.a*d.b*d.b*p.x-d.b*d.b*d.c)/(d.b*(d.a*d.a+d.b*d.b));
+				
+					
+				Droite d1 = droite(apt[j+1],boules[i]);
+				Vecteur v; v.x = d1.a; v.y = d1.b;
+				Droite d2 = droitev(apt[j+1],v);
+				bpt[j+1] = projection(d2,apt[j]);
+				canne[j+1] = segment(apt[j+1],bpt[j+1]);
+				t = 0;
+			}
 		}
 		*/
-	
 
-		j = j++;
-
+		j = j+1;
+		if(t == 1 ){ break; }
 	}
 
 
@@ -264,4 +267,4 @@ vector<Point> algo (const Point coin[12],const Point boules[15], const Point bla
 
 
 
-}
+}	
