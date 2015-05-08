@@ -1,13 +1,12 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include "Main.h"
 #include <iostream>
 #include <cmath>
 #include <string>
+#include <vector>
 
-#define NBR	2
-
-using namespace cv;
-using namespace std;
+//#define NBR	2
 
 #define PI 3.14159265
 
@@ -39,7 +38,7 @@ int thresholdCenter = 16;
 int minLineLengh = 5;
 int maxLineGap = 3;
 
-int minRed = 120;
+int minRed = 110;
 int maxRed = 130;
 int maxNoire = 120;
 int maxBlanche = 40;
@@ -53,101 +52,13 @@ const int MAX_SIZE = 10;
 
 const string curseurWindowName = "curseurs";
 
-struct Bille
-{
-	int x;
-	int y;
-	string color; //N (noir), B(blanc), J(jaune) ou R(rouge)
-};
+Droite droite(Point p1, Point p2);
 
-struct Droite{
-	int a;
-	int b;
-	int c;
-};
+Segment segment(Point p1, Point p2);
 
-struct Segment{
-	Droite d;
-	Point p1;
-	Point p2;
-};
+Point croisement(Droite d1, Droite d2);
 
-Droite droite(Point p1, Point p2){
-
-
-	Droite r;
-	r.a = p1.y - p2.y;
-
-	r.b = p2.x - p1.x;
-
-	r.c = -p1.y*p2.x + p1.x*p2.y;
-
-	return r;
-}
-
-Segment segment(Point p1, Point p2){
-
-
-	Segment r;
-	r.d = droite(p1, p2);
-	r.p1 = p1;
-	r.p2 = p2;
-
-	return r;
-}
-
-Point croisement(Droite d1, Droite d2){
-	Point r;
-	if ((d2.b*d1.a - d2.a*d1.b != 0) && (d1.a*d2.b - d2.a*d1.b != 0))
-	{
-
-		r.y = (d2.c*d1.a - d2.a*d1.c) / (d2.b*d1.a - d2.a*d1.b);
-
-		r.x = (d1.c*d2.b - d1.b*d2.c) / (d1.a*d2.b - d2.a*d1.b);
-	}
-	else
-	{
-		r.x = 0;
-		r.y = 0;
-	}
-	return r;
-}
-
-bool appartient(Segment s, Point p){
-
-	int i = 0;
-
-	if (s.p1.x < s.p2.x)
-	{
-		if (s.p1.x < p.x && p.x < s.p2.x)
-			i = i + 1;
-	}
-	else
-	{
-		if (s.p2.x < p.x && p.x < s.p1.x)
-			i = i + 1;
-	}
-
-	if (s.p1.y < s.p2.y)
-	{
-		if (s.p1.y < p.y && p.y < s.p2.y)
-			i = i + 1;
-	}
-	else
-	{
-		if (s.p2.y < p.y && p.y < s.p1.y)
-			i = i + 1;
-	}
-
-	if (s.d.a*p.x + s.d.b*p.y + s.d.c == 0)
-		i++;
-
-	if (i == 3)
-		return true;
-	else
-		return false;
-
-}
+bool appartient(Segment s, Point p);
 
 bool intersection(Point2i o1, Point2i p1, Point2i o2, Point2i p2, Point2i &r)
 {
@@ -170,23 +81,9 @@ bool intersection(Point2i o1, Point2i p1, Point2i o2, Point2i p2, Point2i &r)
 	}
 }
 
-int pscalaire(Point p1, Point p2, Point p3, Point p4){
+int pscalaire(Point p1, Point p2, Point p3, Point p4);
 
-	int r;
-
-	r = (p2.x - p1.x)*(p4.x - p3.x) + (p2.y - p1.y)*(p4.y - p3.y);
-
-	return r;
-}
-
-Point sym(Segment s, Point a){
-
-	Point r;
-	r.y = 1 / (1 + s.d.a ^ 2 / s.d.b ^ 2)*(2 * s.p1.y - a.y - s.d.a / s.d.b*(2 * a.x - s.d.a / s.d.b*a.y - 2 * s.p1.x));
-	r.x = a.x + s.d.a / s.d.b*(r.y - a.y);
-
-	return r;
-}
+Point sym(Segment s, Point a);
 
 bool getPerpendiculaire(Point2i A, Point2i B, Point2i &r)
 {
@@ -246,15 +143,20 @@ void createcurseurs(){
 
 }
 
-//create a table of 8 points
-Point rectangleBillard[12]; // Nettoyage du code, ajout d'un compteur pour n'autoriser que 11 clics
-int cmptClics = 12; //Ledit compteur
+vector<Point> rebond(const Point coin[12], const Point boules[15], const Point blanche, const Point cane[2], const int rayon);
+
+//Création d'un tableau de 12 points pour définir les bandes du billard, et les trous
+Point rectangleBillard[12]; // Ensemble de points définissant les bandes du billard
+int cmptClics = 12; //Compteur du nombre de clics (l'utilsateur ne devra pas définir plus de 12 points pour le billard
 
 //tableau des 4 points moyens
 Point rectMoy[4];
 
 //La canne
 Point cannePoint[2];
+
+Point positionBilles[16]; //Tableau des positions des billes non-blanches
+vector<Point> Rebonds; //Vecteur de la prédiction des rebonds de la boule blanche
 
 // Fonction pour récupérer les actions de la souris
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
@@ -277,7 +179,7 @@ int main(int argc, char* argv[])
 {
 	posBlanche.x = 0;
 	posBlanche.y = 0;
-	//Initialisation de rectangleBillard
+	//Initialisation de rectangleBillard (les bors du billards sont initialisés à des valeurs plausibles
 	rectangleBillard[0].x = 85;
 	rectangleBillard[0].y = 309;
 	rectangleBillard[1].x = 58;
@@ -304,13 +206,14 @@ int main(int argc, char* argv[])
 	rectangleBillard[11].y = 329;
 	myROI = cvRect(rectangleBillard[0].x, rectangleBillard[2].y, rectangleBillard[7].x - rectangleBillard[0].x, rectangleBillard[8].y - rectangleBillard[2].y);
 
-	// open the video file for reading
+	// Chargement de la vidéo pour lecture
+	//todo insérer en paramètre en début de programme
 	VideoCapture cap("Capture_20150204_1.mp4");
 
-	// if not success, exit program
+	// En cas d'écherc, fin du programme
 	if (!cap.isOpened())
 	{
-		cout << "Cannot open the video file" << endl;
+		cout << "Impossible d'ouvrir le fichier vidéo" << endl;
 		return -1;
 	}
 
@@ -336,10 +239,10 @@ int main(int argc, char* argv[])
 	{
 		Mat matOriginalFrame;
 
-		// read a new frame from video
+		// Lecture d'une nouvelle image de la vidéo
 		bool bSuccess = cap.read(matOriginalFrame);
 
-		//if not success, break loop
+		// En cas d'échec, fin du programme
 		if (!bSuccess)
 		{
 			cout << "Cannot read the frame from video file" << endl;
@@ -407,17 +310,17 @@ int main(int argc, char* argv[])
 
 		Mat matLine;
 
-		if (posBlanche.x == 0)//Si pas de canne
+		if (posBlanche.x == 0)//Si la boule blanche n'est pas détectée
 		{
 			//Alors on cherche à l'intérieur de tout le billard
 			ROICanne = myROI;
-			cout << "lines est empty" << endl;
+			//cout << "lines est empty" << endl;
 		}
 		else//Canne
 		{
 			//Alors on cherche à proximité de la position précédente de la canne
-			ROICanne = cvRect(posBlanche.x - ecartCanne, posBlanche.y - ecartCanne, 2 * ecartCanne, 2 * ecartCanne);
-			cout << "On a trouvé une canne" << endl;
+			ROICanne = cvRect(min(max(0, posBlanche.x - ecartCanne),639-2*ecartCanne), min(max(0,posBlanche.y - ecartCanne),479-2*ecartCanne), 2 * ecartCanne, 2 * ecartCanne);
+			//cout << "On a trouvé une canne" << endl;
 		}
 
 		matLine = matOriginalFrame(ROICanne);
@@ -490,22 +393,22 @@ int main(int argc, char* argv[])
 		//src = imread( "building.jpg", 1 );resize(src,src,Size(640,480));
 		//cap.read(src);
 		src = matRecadrer;
-		//Convert src in black and white and store it in matrix gray
+		//Conversion de l'image source en N&B, stockage dans la matrice 'gray'
 		cvtColor(src, gray, CV_BGR2GRAY);
 
-		// Reduce the noise so we avoid false circle detection
-		// Take gray, return gray, 
+		// On réduit le bruit par un flou gaussien pour affiner la détection des cercles
+		// N&B -> N&B
 		GaussianBlur(gray, gray, Size(13, 13), 1, 1);
 
 		vector<Vec3f> circles;
 
 		//circles.resize(16); // Redéfini le nombre de cercles recherchés -> il faudrait trouver comment utiliser gpu car dasn ce cas le nombre de cercles est un paramêtre de HoughCircle -> c'est mieux !!!
 
-		// Apply the Hough Transform to find the circles
+		// Application la transformée de Hough pour trouver les cercles
 		HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 1, DIST_MIN, thresholdCanny, thresholdCenter, MIN_SIZE, MAX_SIZE);
 
 
-		// Draw the circles detected
+		// Dessin des cercles détectés
 		for (size_t i = 0; i < circles.size(); i++)
 		{
 			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
@@ -523,8 +426,8 @@ int main(int argc, char* argv[])
 		cvtColor(img_rgb, img_hsv, CV_RGB2HSV);
 		//On crée un tableau des billes
 		struct Bille TableauBilles[16];
-		//On cherche le couleur à l'intérieur de chaque cercle
-		for (size_t i = 0; i < circles.size(); i++) //pour éviter les erreures d'assertion
+		//On cherche le couleur à l'intérieur de chaque cercle pour éviter les erreures d'assertion
+		for (size_t i = 0; i < circles.size(); i++) 
 		{
 
 			//for(int j = 0; j < 10; j++)//On parcours quelques points de la bille pour faire une moyenne
@@ -562,7 +465,7 @@ int main(int argc, char* argv[])
 						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
-						cout << posBlanche.x << endl;
+						//cout << posBlanche.x << endl;
 						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 255, 255));
 					}
 					else if ((circles[i][0] < posBlanche.x + 50) && (circles[i][0] > posBlanche.x - 50))
@@ -572,7 +475,7 @@ int main(int argc, char* argv[])
 						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
-						cout << posBlanche.x << endl;
+						//cout << posBlanche.x << endl;
 						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 255, 255));
 					}
 					else
@@ -623,78 +526,55 @@ int main(int argc, char* argv[])
 			}
 		}
 		//////////////////////////////////////////// Rebonds ///////////////////////////////////////////////////////////////////////////////////////////////////////		
-
-		Point apt[NBR];
-		Point bpt[NBR];
-		Point cb;
-
-		// coordonnées des points de départ
-		if (compteurDeLigne != 0)
+		
+		for (size_t i = 0; i < 15; i++) //initialisation du tableau avec des billes à l'origine, pour éviter les pointeurs null
 		{
-			cb.x = posBlanche.x;
-			cb.y = posBlanche.y;
-			apt[0].x = cannePoint[0].x;
-			apt[0].y = cannePoint[0].y;
-			bpt[0].x = cannePoint[1].x;
-			bpt[0].y = cannePoint[1].y;
+			positionBilles[i] = Point(0, 0);
+		}
 
-
-
-			// equation des bords et de la canne
-
-			Segment bord[6];
-
-			for (int i = 0; i < 12; i += 2)
+		for (size_t i = 0; i < 16; i++) //Extraction de la position des billes non-blanches
+		{
+			if (TableauBilles[i].color.compare("Blanche") != 0)
 			{
-				bord[i / 2] = segment(Point(rectangleBillard[i].x, rectangleBillard[i].y), Point(rectangleBillard[i + 1].x, rectangleBillard[i + 1].y));
-			}
-
-			Segment canne = segment(apt[0], bpt[0]);
-
-			// equation du points d'intersection
-
-			Segment bs[NBR];
-
-			for (int j = 1; j < NBR; j++){
-
-				for (int i = 0; i < 6; i++){
-					Point crossingPoint;
-					intersection(canne.p1, canne.p2, bord[i].p1, bord[i].p2, crossingPoint); //On  trouve l'intersection
-					circle(src, crossingPoint, 1, Scalar(0, 0, 0), 3, 8, 0);
-					Point bordPerpendiculaire;
-					getPerpendiculaire(bord[i].p1, crossingPoint, bordPerpendiculaire); //On trouve la perpendiculaire au point d'intersection
-					//circle( src, Point(bordPerpendiculaire.x, bordPerpendiculaire.y), 1, Scalar(255,255,255), 3, 8, 0 );
-					line(matOriginalFrame, crossingPoint, Point(bordPerpendiculaire.x, bordPerpendiculaire.y), Scalar(255, 255, 255), 2, CV_AA);
-				}
-				bpt[j] = sym(bs[j], apt[0]);
+				positionBilles[i] = Point(TableauBilles[i].x, TableauBilles[i].y);
 			}
 		}
-		for (int i = 0; i < 12; i += 2)
-		{
-			line(matOriginalFrame, Point(rectangleBillard[i].x, rectangleBillard[i].y), Point(rectangleBillard[i + 1].x, rectangleBillard[i + 1].y), Scalar(0, 255, 255), 2, CV_AA);
-		}
-		circle(src, apt[2], 1, Scalar(255, 255, 255), 3, 8, 0);
-		circle(src, apt[1], 1, Scalar(255, 255, 255), 3, 8, 0);
-		circle(src, bpt[2], 1, Scalar(255, 255, 255), 3, 8, 0);
-		circle(src, bpt[1], 1, Scalar(255, 255, 255), 3, 8, 0);
 
+		Rebonds = rebond(rectangleBillard, positionBilles,posBlanche,cannePoint,3);
+		
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		compteurDeCouleur++;
 		compteurDeLigne++;
-		cout << compteurDeLigne << endl;
+		//cout << compteurDeLigne << endl;
 		///////////////////////////////////////////// Affichage ///////////////////////////////////////////////////////////////////////////////
 
-		line(matLine, Point(cannePoint[0].x, cannePoint[0].y), Point(cannePoint[1].x, cannePoint[1].y), Scalar(255, 255, 0), 5, CV_AA);
+		line(matLine, Point(cannePoint[0].x, cannePoint[0].y), Point(cannePoint[1].x, cannePoint[1].y), Scalar(255, 255, 0), 5, CV_AA); //Affichage de la portion de canne détectée
+		for (int i = 0; i < 12; i += 2) //Affichage des bandes
+		{
+			line(matOriginalFrame, Point(rectangleBillard[i].x, rectangleBillard[i].y), Point(rectangleBillard[i + 1].x, rectangleBillard[i + 1].y), Scalar(0, 255, 255), 2, CV_AA);
+		}
+
+		int i = 0;
+		if (!(Rebonds[i].x == 0 && Rebonds[i].y == 0))
+		{
+			cout << "Premier point" << endl;
+			while (!(Rebonds[i+1].x == 0 && Rebonds[i+1].y == 0))
+			{
+				cout << "Autre point" << endl;
+				line(matOriginalFrame, Rebonds[i], Rebonds[i+1], Scalar(255, 255, 255), 1, CV_AA);
+				i++;
+			}
+		}
+		
 
 		// Affiche le resultat
 
-
 		imshow(pzCirclesWindowName, src);
 
-		//wait for 'esc' key press for 30 ms. If 'esc' key is pressed, break loop
+		//Attends pendant 30 ms une pression sur la touche ESC; sort de la boucle si c'est le cas
 		if (waitKey(30) == 27)
 		{
-			cout << "esc key is pressed by user" << endl;
+			cout << "L'utilisateur a appuyé sur la touche ESC" << endl;
 			break;
 		}
 	}

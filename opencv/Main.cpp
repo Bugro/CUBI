@@ -1,11 +1,12 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include "Main.h"
 #include <iostream>
 #include <cmath>
 #include <string>
-#include "Main.h"
+#include <vector>
 
-#define NBR	2
+//#define NBR	2
 
 #define PI 3.14159265
 
@@ -37,7 +38,7 @@ int thresholdCenter = 16;
 int minLineLengh = 5;
 int maxLineGap = 3;
 
-int minRed = 120;
+int minRed = 110;
 int maxRed = 130;
 int maxNoire = 120;
 int maxBlanche = 40;
@@ -51,29 +52,9 @@ const int MAX_SIZE = 10;
 
 const string curseurWindowName = "curseurs";
 
-Droite droite(Point p1, Point p2){
+Droite droite(Point p1, Point p2);
 
-
-	Droite r;
-	r.a = p1.y - p2.y;
-
-	r.b = p2.x - p1.x;
-
-	r.c = -p1.y*p2.x + p1.x*p2.y;
-
-	return r;
-}
-
-Segment segment(Point p1, Point p2){
-
-
-	Segment r;
-	r.d = droite(p1, p2);
-	r.p1 = p1;
-	r.p2 = p2;
-
-	return r;
-}
+Segment segment(Point p1, Point p2);
 
 Point croisement(Droite d1, Droite d2);
 
@@ -162,17 +143,20 @@ void createcurseurs(){
 
 }
 
-vector<Point> algo(const Point coin[12], const Point boules[15], const Point blanche, const Point cane[2]);
+vector<Point> rebond(const Point coin[12], const Point boules[15], const Point blanche, const Point cane[2], const int rayon);
 
-//create a table of 8 points
+//Création d'un tableau de 12 points pour définir les bandes du billard, et les trous
 Point rectangleBillard[12]; // Ensemble de points définissant les bandes du billard
-int cmptClics = 12; //Ledit compteur
+int cmptClics = 12; //Compteur du nombre de clics (l'utilsateur ne devra pas définir plus de 12 points pour le billard
 
 //tableau des 4 points moyens
 Point rectMoy[4];
 
 //La canne
 Point cannePoint[2];
+
+Point positionBilles[16]; //Tableau des positions des billes non-blanches
+vector<Point> Rebonds; //Vecteur de la prédiction des rebonds de la boule blanche
 
 // Fonction pour récupérer les actions de la souris
 void CallBackFunc(int event, int x, int y, int flags, void* userdata)
@@ -326,17 +310,17 @@ int main(int argc, char* argv[])
 
 		Mat matLine;
 
-		if (posBlanche.x == 0)//Si pas de canne
+		if (posBlanche.x == 0)//Si la boule blanche n'est pas détectée
 		{
 			//Alors on cherche à l'intérieur de tout le billard
 			ROICanne = myROI;
-			cout << "lines est empty" << endl;
+			//cout << "lines est empty" << endl;
 		}
 		else//Canne
 		{
 			//Alors on cherche à proximité de la position précédente de la canne
-			ROICanne = cvRect(posBlanche.x - ecartCanne, posBlanche.y - ecartCanne, 2 * ecartCanne, 2 * ecartCanne);
-			cout << "On a trouvé une canne" << endl;
+			ROICanne = cvRect(min(max(0, posBlanche.x - ecartCanne),639-2*ecartCanne), min(max(0,posBlanche.y - ecartCanne),479-2*ecartCanne), 2 * ecartCanne, 2 * ecartCanne);
+			//cout << "On a trouvé une canne" << endl;
 		}
 
 		matLine = matOriginalFrame(ROICanne);
@@ -442,8 +426,8 @@ int main(int argc, char* argv[])
 		cvtColor(img_rgb, img_hsv, CV_RGB2HSV);
 		//On crée un tableau des billes
 		struct Bille TableauBilles[16];
-		//On cherche le couleur à l'intérieur de chaque cercle
-		for (size_t i = 0; i < circles.size(); i++) //pour éviter les erreures d'assertion
+		//On cherche le couleur à l'intérieur de chaque cercle pour éviter les erreures d'assertion
+		for (size_t i = 0; i < circles.size(); i++) 
 		{
 
 			//for(int j = 0; j < 10; j++)//On parcours quelques points de la bille pour faire une moyenne
@@ -481,7 +465,7 @@ int main(int argc, char* argv[])
 						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
-						cout << posBlanche.x << endl;
+						//cout << posBlanche.x << endl;
 						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 255, 255));
 					}
 					else if ((circles[i][0] < posBlanche.x + 50) && (circles[i][0] > posBlanche.x - 50))
@@ -491,7 +475,7 @@ int main(int argc, char* argv[])
 						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
-						cout << posBlanche.x << endl;
+						//cout << posBlanche.x << endl;
 						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 255, 255));
 					}
 					else
@@ -543,7 +527,6 @@ int main(int argc, char* argv[])
 		}
 		//////////////////////////////////////////// Rebonds ///////////////////////////////////////////////////////////////////////////////////////////////////////		
 		
-		Point positionBilles[16] ;
 		for (size_t i = 0; i < 15; i++) //initialisation du tableau avec des billes à l'origine, pour éviter les pointeurs null
 		{
 			positionBilles[i] = Point(0, 0);
@@ -557,12 +540,12 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		vector<Point> Rebonds = algo(rectangleBillard, positionBilles,posBlanche,cannePoint);
+		Rebonds = rebond(rectangleBillard, positionBilles,posBlanche,cannePoint,3);
 		
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		compteurDeCouleur++;
 		compteurDeLigne++;
-		cout << compteurDeLigne << endl;
+		//cout << compteurDeLigne << endl;
 		///////////////////////////////////////////// Affichage ///////////////////////////////////////////////////////////////////////////////
 
 		line(matLine, Point(cannePoint[0].x, cannePoint[0].y), Point(cannePoint[1].x, cannePoint[1].y), Scalar(255, 255, 0), 5, CV_AA); //Affichage de la portion de canne détectée
@@ -570,6 +553,19 @@ int main(int argc, char* argv[])
 		{
 			line(matOriginalFrame, Point(rectangleBillard[i].x, rectangleBillard[i].y), Point(rectangleBillard[i + 1].x, rectangleBillard[i + 1].y), Scalar(0, 255, 255), 2, CV_AA);
 		}
+
+		int i = 0;
+		if (!(Rebonds[i].x == 0 && Rebonds[i].y == 0))
+		{
+			cout << "Premier point" << endl;
+			while (!(Rebonds[i+1].x == 0 && Rebonds[i+1].y == 0))
+			{
+				cout << "Autre point" << endl;
+				line(matOriginalFrame, Rebonds[i], Rebonds[i+1], Scalar(255, 255, 255), 1, CV_AA);
+				i++;
+			}
+		}
+		
 
 		// Affiche le resultat
 
