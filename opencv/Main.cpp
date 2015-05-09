@@ -1,3 +1,8 @@
+//todo Bug: Le tracé de la queue est parfois affiché comme le symétrique de la position réelle
+//todo Bug: la fonctionnalité rebonds ne fonctionne pas
+//todo Ne chercher des cercles (boules) que sur le terrain de jeu (délimité par les bandes)
+//todo Simplifier le main (isoler chaque partie sous forme de fonctions séparées
+
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "Main.h"
@@ -10,21 +15,21 @@
 
 #define PI 3.14159265
 
-Point posBlanche;
+Point posBlanche; //Position de la boule blanche sur la vidéo
 
-int maxCanneX = 640;
+int maxCanneX = 640; //todo A modifier: dépend de la résolution de la vidéo
 int minCanneX = 0;
-int maxCanneY = 480;
+int maxCanneY = 480; //todo A modifier: dépend de la résolution de la vidéo
 int minCanneY = 0;
 
-int ecartCanne = 100;
+int ecartCanne = 100; //Définit le demi-côté du cadre autour de la blanche dans lequel on cherche la canne
 
 int coefDirCanne = 0;
 int ordOrigCanne = 0;
 
 int compteurDePoint = 0;
 int compteurDeCouleur = 0;
-int compteurDeLigne = 0;
+int compteurDeLigne = 0; //todo Trouver la signification
 
 Rect myROI, ROICanne;
 
@@ -38,12 +43,12 @@ int thresholdCenter = 16;
 int minLineLengh = 5;
 int maxLineGap = 3;
 
-int minRed = 110;
-int maxRed = 130;
-int maxNoire = 120;
-int maxBlanche = 40;
-int minJaune = 90;
-int maxJaune = 100;
+int minRed = 110; //Valeur de couleur minimale qui définit le rouge
+int maxRed = 130; //Valeur de couleur maximale qui définit le rouge
+int maxNoire = 120; //Valeur de valeur maximale en dessous de laquelle on considère que c'est noir
+int maxBlanche = 40; //Valeur de saturation maximale en dessous de laquelle on considère que c'est blanc
+int minJaune = 80; //Valeur de couleur minimale qui définit le jaune
+int maxJaune = 105; //Valeur de couleur maximale qui définit le jaune
 
 //Paramêtres des cercles 
 const int DIST_MIN = 5;
@@ -147,7 +152,6 @@ vector<Point> rebond(const Point coin[12], const Point boules[15], const Point b
 
 //Création d'un tableau de 12 points pour définir les bandes du billard, et les trous
 Point rectangleBillard[12]; // Ensemble de points définissant les bandes du billard
-int cmptClics = 12; //Compteur du nombre de clics (l'utilsateur ne devra pas définir plus de 12 points pour le billard
 
 //tableau des 4 points moyens
 Point rectMoy[4];
@@ -163,14 +167,13 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata)
 {
 	if (event == EVENT_LBUTTONDOWN) // Lorsqu'on clique on crée des points
 	{
-		if (cmptClics>0) //Test du nombre de clics effectués
+		if (compteurDePoint<12) //Test du nombre de clics effectués
 		{
 			//cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << endl;
 			rectangleBillard[compteurDePoint].x = x;
 			rectangleBillard[compteurDePoint].y = y;
 			cout << "Le point numéro " << compteurDePoint << " a pour position (" << rectangleBillard[compteurDePoint].x << ", " << rectangleBillard[compteurDePoint].y << ")." << endl;
 			compteurDePoint++;
-			cmptClics--;
 		}
 	}
 }
@@ -209,8 +212,8 @@ int main(int argc, char* argv[])
 	// Chargement de la vidéo pour lecture
 	//todo insérer en paramètre en début de programme
 	VideoCapture cap("Capture_20150204_1.mp4");
-
-	// En cas d'écherc, fin du programme
+	
+	// En cas d'échec, fin du programme
 	if (!cap.isOpened())
 	{
 		cout << "Impossible d'ouvrir le fichier vidéo" << endl;
@@ -251,7 +254,7 @@ int main(int argc, char* argv[])
 
 		imshow(pzOriginalWindowName, matOriginalFrame);
 
-		//set the callback function for any mouse event
+		//On déclare la fonction qui permet de déclecher tous les événements liés au clic de souris
 		setMouseCallback(pzOriginalWindowName, CallBackFunc, NULL); //On choisi la fenêtre sur laquelle on travail
 
 		//On affiche la fenêtre recadrée que lorsqu'on a fini de cliquer les 12 points
@@ -316,10 +319,10 @@ int main(int argc, char* argv[])
 			ROICanne = myROI;
 			//cout << "lines est empty" << endl;
 		}
-		else//Canne
+		else//la boule blanche est détectée
 		{
-			//Alors on cherche à proximité de la position précédente de la canne
-			ROICanne = cvRect(min(max(0, posBlanche.x - ecartCanne),639-2*ecartCanne), min(max(0,posBlanche.y - ecartCanne),479-2*ecartCanne), 2 * ecartCanne, 2 * ecartCanne);
+			//Alors on cherche à proximité de la position de la boule blanche, dans les limites où le cadre ne dépasse pas la matrice originale
+			ROICanne = cvRect(min(max(0, posBlanche.x - ecartCanne),matOriginalFrame.cols-1-2*ecartCanne), min(max(0,posBlanche.y - ecartCanne),matOriginalFrame.rows-1-2*ecartCanne), 2 * ecartCanne, 2 * ecartCanne);
 			//cout << "On a trouvé une canne" << endl;
 		}
 
@@ -402,7 +405,7 @@ int main(int argc, char* argv[])
 
 		vector<Vec3f> circles;
 
-		//circles.resize(16); // Redéfini le nombre de cercles recherchés -> il faudrait trouver comment utiliser gpu car dasn ce cas le nombre de cercles est un paramêtre de HoughCircle -> c'est mieux !!!
+		//circles.resize(16); // Redéfinit le nombre de cercles recherchés -> il faudrait trouver comment utiliser gpu car dans ce cas le nombre de cercles est un paramêtre de HoughCircle -> c'est mieux !!!
 
 		// Application la transformée de Hough pour trouver les cercles
 		HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 1, DIST_MIN, thresholdCanny, thresholdCenter, MIN_SIZE, MAX_SIZE);
@@ -422,47 +425,50 @@ int main(int argc, char* argv[])
 		////////////////////////////////////// Détection de couleurs à l'intérieur des cercles ///////////////////////////////////////////////////
 		Mat img_rgb, img_hsv;
 		img_rgb = src;
-		//On converti img_rgb en img_hsv
+		//On convertit img_rgb en img_hsv
 		cvtColor(img_rgb, img_hsv, CV_RGB2HSV);
 		//On crée un tableau des billes
 		struct Bille TableauBilles[16];
-		//On cherche le couleur à l'intérieur de chaque cercle pour éviter les erreures d'assertion
+
+		//On cherche le couleur à l'intérieur de chaque cercle pour éviter les erreurs d'assertion
 		for (size_t i = 0; i < circles.size(); i++) 
 		{
 
-			//for(int j = 0; j < 10; j++)//On parcours quelques points de la bille pour faire une moyenne
-			//{
 			int bla = compteurDeCouleur % 1; //On fait l'opération une fois tous les 2 tours
 			if (bla == 0)
 			{
 				//Dans la fonction qui suit y est en premier et x en second
-
+				
+				
 				//Le "point" la ligne qui suit est d'une importance primordiale !!!!
-				Vec3b intensity = img_hsv.at<Vec3b>(Point(cvRound(circles[i][0]), cvRound(circles[i][1])));//On s'intéresse ici au point d'une des billes
-				/* In case of BGR coded image
-				int blue = intensity.val[0];
-				int green = intensity.val[1];
-				int red = intensity.val[2];
-				*/
-
-
-				//cout << "Bille n° " << i << " is ( " << blue << " ," << green << " ," << red << " )" << endl;
-
-				// In case of HVS coded image
-				int intens0 = (int)intensity.val[0];
-				int intens1 = (int)intensity.val[1];
-				int intens2 = (int)intensity.val[2];
+				Vec3b intensity;
+				int hue = 0;
+				int saturation = 0;
+				int value = 0;
+				for (size_t j = 0; j < 2 * MIN_SIZE + 1; j++) //On fait une analyse sur une ligne le long de l'axe des x
+				{
+					intensity= img_hsv.at<Vec3b>(Point(cvRound(circles[i][0])-MIN_SIZE+j, cvRound(circles[i][1])));//On s'intéresse ici au point d'une des billes
+					hue+=(int)intensity.val[0];
+					saturation += (int)intensity.val[1];
+					value += (int)intensity.val[2];
+				}
+				
+				hue /= (2 * MIN_SIZE + 1);
+				saturation /= (2 * MIN_SIZE + 1);
+				value /= (2 * MIN_SIZE + 1);
+				// On récupère les paramètres HSV
+				
 
 				//Si la couleur est comprise dans un intervalle correct alors on considère qu'on a une bille sinon non
 
 
-				if (intens1 < maxBlanche)
+				if (saturation < maxBlanche)
 				{
 					if (compteurDeLigne == 0)
 					{
 						TableauBilles[i].color = "Blanche";
 						//cout << "Color " << TableauBilles[i].color <<endl;
-						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+						//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
 						//cout << posBlanche.x << endl;
@@ -472,7 +478,7 @@ int main(int argc, char* argv[])
 					{
 						TableauBilles[i].color = "Blanche";
 						//cout << "Color " << TableauBilles[i].color <<endl;
-						//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+						//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 						posBlanche.x = circles[i][0];
 						posBlanche.y = circles[i][1];
 						//cout << posBlanche.x << endl;
@@ -480,30 +486,37 @@ int main(int argc, char* argv[])
 					}
 					else
 					{
-
+						//todo Bugfix temporaire: désormais, on ne cherche plus la boule blanche à proximité de sa dernière position, mais sur tout le terrain
+						TableauBilles[i].color = "Blanche";
+						//cout << "Color " << TableauBilles[i].color <<endl;
+						//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
+						posBlanche.x = circles[i][0];
+						posBlanche.y = circles[i][1];
+						//cout << posBlanche.x << endl;
+						putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 255, 255));
 					}
 				}
-				else if (intens2 < maxNoire)
+				else if (value < maxNoire)
 				{
 					TableauBilles[i].color = "Noire";
 					//cout << "Color " << TableauBilles[i].color <<endl;
-					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(0, 0, 0));
 				}
-				else if (intens0 < maxRed && intens0 > minRed)
+				else if (hue < maxRed && hue > minRed)
 				{
 					TableauBilles[i].color = "Rouge";
 					//cout << "Color " << TableauBilles[i].color <<endl;
-					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(0, 0, 255));
 				}
-				else if (intens0 > minJaune && intens0 < maxJaune)
+				else if (hue > minJaune && hue < maxJaune)
 				{
 					TableauBilles[i].color = "Jaune";
 					//cout << "Color " << TableauBilles[i].color <<endl;
-					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(0, 255, 255));
 				}
@@ -511,11 +524,11 @@ int main(int argc, char* argv[])
 				{
 					TableauBilles[i].color = "Unknown"; // for unknonw : ce n'est pas un bille
 					//cout << "Color " << TableauBilles[i].color <<endl;
-					//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+					//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 
 					putText(src, TableauBilles[i].color, cv::Point(cvRound(circles[i][0]), cvRound(circles[i][1])), 1, 1, Scalar(255, 0, 0));
 				}
-				//cout << "( " << intens0 << ", " << intens1 << ", " << intens2 << " )" << endl;
+				//cout << "( " << hue << ", " << saturation << ", " << value << " )" << endl;
 				//cout << "Color " << TableauBilles[i].color <<endl;
 				//cout << "Couleur ( " << intensity[0] << ", " << intensity[1] << ", " << intensity[2] << " )" << endl;
 
@@ -527,7 +540,7 @@ int main(int argc, char* argv[])
 		}
 		//////////////////////////////////////////// Rebonds ///////////////////////////////////////////////////////////////////////////////////////////////////////		
 		
-		for (size_t i = 0; i < 15; i++) //initialisation du tableau avec des billes à l'origine, pour éviter les pointeurs null
+		for (size_t i = 0; i < 16; i++) //initialisation du tableau avec des billes à l'origine, pour éviter les pointeurs null
 		{
 			positionBilles[i] = Point(0, 0);
 		}
@@ -571,8 +584,8 @@ int main(int argc, char* argv[])
 
 		imshow(pzCirclesWindowName, src);
 
-		//Attends pendant 30 ms une pression sur la touche ESC; sort de la boucle si c'est le cas
-		if (waitKey(30) == 27)
+		//Attends pendant 1 ms une pression sur la touche ESC; sort de la boucle si c'est le cas
+		if (waitKey(1) == 27)
 		{
 			cout << "L'utilisateur a appuyé sur la touche ESC" << endl;
 			break;
