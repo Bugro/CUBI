@@ -16,6 +16,7 @@
 #define PI 3.14159265
 
 Point posBlanche; //Position de la boule blanche sur la vidéo
+bool blancheDetected = false; //Booléen pour savoir si la blanche a été trouvée
 
 int maxCanneX = 640; //todo A modifier: dépend de la résolution de la vidéo
 int minCanneX = 0;
@@ -313,7 +314,7 @@ int main(int argc, char* argv[])
 
 		Mat matLine;
 
-		if (posBlanche.x == 0)//Si la boule blanche n'est pas détectée
+		if (blancheDetected = false)//Si la boule blanche n'est pas détectée
 		{
 			//Alors on cherche à l'intérieur de tout le billard
 			ROICanne = myROI;
@@ -321,11 +322,12 @@ int main(int argc, char* argv[])
 		}
 		else//la boule blanche est détectée
 		{
-			//Alors on cherche à proximité de la position de la boule blanche, dans les limites où le cadre ne dépasse pas la matrice originale
+			//Alors on cherche à proximité de la position précédente de la boule blanche, dans les limites où le cadre ne dépasse pas la matrice originale
 			ROICanne = cvRect(min(max(0, posBlanche.x - ecartCanne),matOriginalFrame.cols-1-2*ecartCanne), min(max(0,posBlanche.y - ecartCanne),matOriginalFrame.rows-1-2*ecartCanne), 2 * ecartCanne, 2 * ecartCanne);
 			//cout << "On a trouvé une canne" << endl;
 		}
 
+		blancheDetected = false; //Si la boule blanche était détectée on remet à false pour le tour suivant
 		matLine = matOriginalFrame(ROICanne);
 
 		Canny(matLine, dst, 50, 200, 3);
@@ -382,8 +384,8 @@ int main(int argc, char* argv[])
 		{
 			cannePoint[0].x = minCanneX;
 			cannePoint[0].y = maxCanneY;
-			cannePoint[1].x = minCanneX;
-			cannePoint[1].y = maxCanneY;
+			cannePoint[1].x = maxCanneX;
+			cannePoint[1].y = minCanneY;
 		}
 		imshow(pzRotatingWindowName, matLine);
 		////////////////////////////////////// Detection de cercles //////////////////////////////////////////////////////////////////////
@@ -464,6 +466,7 @@ int main(int argc, char* argv[])
 
 				if (saturation < maxBlanche)
 				{
+					blancheDetected = true;
 					if (compteurDeLigne == 0)
 					{
 						TableauBilles[i].color = "Blanche";
