@@ -2,6 +2,7 @@
 //todo Bug: la fonctionnalité rebonds ne fonctionne pas
 //todo Ne chercher des cercles (boules) que sur le terrain de jeu (délimité par les bandes)
 //todo Simplifier le main (isoler chaque partie sous forme de fonctions séparées
+//todo Pour la canne : selectionner sa couleur avec du threshold, appliquer une fonction pour trouver son skelette, faire de la detection de ligne la dessus
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -136,7 +137,7 @@ void createcurseurs(){
 	sprintf(curseurName, "Max Jaune", maxJaune);
 
 
-	createTrackbar("UpperCanny", curseurWindowName, &thresholdCanny, 50, on_curseur);
+	createTrackbar("UpperCanny", curseurWindowName, &thresholdCanny, 20, on_curseur);
 	createTrackbar("CenterDetection", curseurWindowName, &thresholdCenter, 50, on_curseur);
 
 
@@ -330,7 +331,7 @@ int main(int argc, char* argv[])
 		blancheDetected = false; //Si la boule blanche était détectée on remet à false pour le tour suivant
 		matLine = matOriginalFrame(ROICanne);
 
-		Canny(matLine, dst, 50, 200, 3);
+		Canny(matLine, dst, 50, 50*3, 3);
 
 		HoughLinesP(dst, lines, 1, CV_PI / 360, 50, minLineLengh, maxLineGap); //Plus le 3eme membre est petit plus la fonction est précise mais lente
 
@@ -387,7 +388,7 @@ int main(int argc, char* argv[])
 			cannePoint[1].x = maxCanneX;
 			cannePoint[1].y = minCanneY;
 		}
-		imshow(pzRotatingWindowName, matLine);
+		imshow(pzRotatingWindowName, dst);
 		////////////////////////////////////// Detection de cercles //////////////////////////////////////////////////////////////////////
 
 
